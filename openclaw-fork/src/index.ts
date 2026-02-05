@@ -4,11 +4,33 @@ import { AgentManager } from './agents/manager.js';
 import { SkillRegistry } from './skills/registry.js';
 import { ChannelManager } from './channels/manager.js';
 import { loadConfig } from './utils/config.js';
+import { getDatabase, closeDatabase } from './db/database.js';
+import { UserService } from './users/service.js';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
 async function main() {
   console.log('🐙 Starting Starfish Agent System...');
+
+  // Initialize database
+  getDatabase();
+  console.log('✅ Database initialized');
+
+  // Bootstrap admin user if none exists
+  const userService = new UserService();
+  const users = userService.getAllUsers();
+  if (users.length === 0) {
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@starfish.local';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'changeme123';
+    await userService.createUser({
+      email: adminEmail,
+      username: 'admin',
+      password: adminPassword,
+      isAdmin: true,
+      displayName: 'Admin'
+    });
+    console.log(`🔑 Created admin user: ${adminEmail} (change password immediately!)`);
+  }
 
   // Initialize core systems
   const config = await loadConfig();
@@ -46,6 +68,7 @@ async function main() {
     console.log('\n🛑 Shutting down...');
     await agentManager.stopAll();
     await channelManager.disconnectAll();
+    closeDatabase();
     await server.close();
     process.exit(0);
   });

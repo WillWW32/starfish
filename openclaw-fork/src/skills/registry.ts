@@ -11,6 +11,9 @@ import { fileSkill } from './builtin/file.js';
 import { httpSkill } from './builtin/http.js';
 import { schedulerSkill } from './builtin/scheduler.js';
 import { redditSkill } from './builtin/reddit.js';
+import { heygenSkill } from './builtin/heygen.js';
+import { klingSkill } from './builtin/kling.js';
+import { youtubeSkill } from './builtin/youtube.js';
 
 export class SkillRegistry {
   private skills: Map<string, Skill> = new Map();
@@ -24,7 +27,10 @@ export class SkillRegistry {
       fileSkill,
       httpSkill,
       schedulerSkill,
-      redditSkill
+      redditSkill,
+      heygenSkill,
+      klingSkill,
+      youtubeSkill
     ];
 
     for (const skill of builtinSkills) {

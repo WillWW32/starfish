@@ -7,6 +7,10 @@ import { SkillRegistry } from '../skills/registry.js';
 import { ChannelManager } from '../channels/manager.js';
 import { ApiAdapter } from '../channels/adapters/api.js';
 import { v4 as uuid } from 'uuid';
+import { authRoutes } from './routes/auth.js';
+import { friendRoutes } from './routes/friends.js';
+import { authenticateUser } from '../auth/middleware.js';
+import { getDatabase } from '../db/database.js';
 
 interface ServerOptions {
   port: number;
@@ -25,28 +29,32 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
   await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB
   await app.register(jwt, { secret: process.env.JWT_SECRET || 'starfish-secret-key' });
 
-  // Auth middleware (optional, based on API_KEY env)
+  // Initialize database
+  getDatabase();
+
+  // Register auth routes (public + protected)
+  await authRoutes(app);
+  await friendRoutes(app, agentManager);
+
+  // Auth middleware for all /api/* routes (except auth routes which handle their own)
   app.addHook('preHandler', async (request, reply) => {
-    const publicPaths = ['/health', '/api/auth/login'];
+    const publicPaths = ['/health', '/api/auth/login', '/api/auth/verify-2fa'];
     if (publicPaths.includes(request.url)) return;
+    if (request.url.startsWith('/api/auth/')) return; // Auth routes handle their own auth
 
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) return; // No auth required if no API_KEY set
-
-    const authHeader = request.headers.authorization;
-    if (!authHeader || authHeader !== `Bearer ${apiKey}`) {
-      reply.code(401).send({ error: 'Unauthorized' });
-    }
+    // Require authentication for all other API routes
+    await authenticateUser(request, reply);
   });
 
   // Health check
   app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
 
-  // ===== AGENTS =====
+  // ===== AGENTS (Multi-Tenant) =====
 
-  // List all agents
-  app.get('/api/agents', async () => {
-    const agents = agentManager.getAllAgents();
+  // List agents for current user (admins see all)
+  app.get('/api/agents', async (request) => {
+    const user = request.currentUser!;
+    const agents = agentManager.getAgentsForUser(user.id, user.is_admin === 1);
     return {
       agents: agents.map((a) => ({
         id: a.config.id,
@@ -62,9 +70,15 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     };
   });
 
-  // Get single agent
+  // Get single agent (with ownership check)
   app.get('/api/agents/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
+    const user = request.currentUser!;
+
+    if (!agentManager.canAccessAgent(user.id, id, user.is_admin === 1)) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
     const agent = agentManager.getAgent(id);
     if (!agent) {
       return reply.code(404).send({ error: 'Agent not found' });
@@ -72,16 +86,23 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     return { agent: agent.config };
   });
 
-  // Create agent
+  // Create agent (owned by current user)
   app.post('/api/agents', async (request) => {
     const config = request.body as any;
-    const agent = await agentManager.createAgent(config);
+    const user = request.currentUser!;
+    const agent = await agentManager.createAgent(config, user.id);
     return { agent: agent.config };
   });
 
-  // Update agent
+  // Update agent (ownership required)
   app.put('/api/agents/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
+    const user = request.currentUser!;
+
+    if (!agentManager.canAccessAgent(user.id, id, user.is_admin === 1)) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
     const updates = request.body as any;
     try {
       const agent = await agentManager.updateAgent(id, updates);
@@ -91,9 +112,15 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     }
   });
 
-  // Delete agent
+  // Delete agent (ownership required)
   app.delete('/api/agents/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
+    const user = request.currentUser!;
+
+    if (!agentManager.canAccessAgent(user.id, id, user.is_admin === 1)) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
     try {
       await agentManager.deleteAgent(id);
       return { deleted: true };
@@ -102,35 +129,68 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     }
   });
 
-  // Spawn sub-agent
+  // Spawn sub-agent (ownership of parent required)
   app.post('/api/agents/:id/spawn', async (request, reply) => {
     const { id } = request.params as { id: string };
+    const user = request.currentUser!;
+
+    if (!agentManager.canAccessAgent(user.id, id, user.is_admin === 1)) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
     const config = request.body as any;
     try {
       const subAgent = await agentManager.spawnSubAgent(id, config);
-      return { subAgent };
+      return { subAgent: subAgent.config };
     } catch (err: any) {
       return reply.code(400).send({ error: err.message });
     }
   });
 
-  // Send message to agent
+  // Send message to agent (access required)
   app.post('/api/agents/:id/message', async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { content, channel = 'api', from = 'api-user' } = request.body as any;
+    const user = request.currentUser!;
 
+    if (!agentManager.canAccessAgent(user.id, id, user.is_admin === 1)) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
+    const { content, channel = 'api', from } = request.body as any;
     try {
       const response = await agentManager.processMessage(id, {
         agentId: id,
         channel,
         role: 'user',
         content,
-        metadata: { from }
+        metadata: { from: from || user.username }
       });
       return { response: response.content };
     } catch (err: any) {
       return reply.code(400).send({ error: err.message });
     }
+  });
+
+  // Team status endpoint — all agents for user with metrics
+  app.get('/api/agents/team-status', async (request) => {
+    const user = request.currentUser!;
+    const agents = agentManager.getAgentsForUser(user.id, user.is_admin === 1);
+
+    return {
+      team: agents.map((a) => ({
+        id: a.config.id,
+        name: a.config.name,
+        description: a.config.description,
+        model: a.config.model,
+        skills: a.config.skills,
+        running: a.isRunning(),
+        parentAgentId: a.config.parentAgentId,
+        createdAt: a.config.createdAt,
+        updatedAt: a.config.updatedAt,
+        owner: agentManager.getAgentOwner(a.config.id)
+      })),
+      count: agents.length
+    };
   });
 
   // ===== SKILLS =====
