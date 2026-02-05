@@ -1,0 +1,39 @@
+{
+  "id": "sample-assistant",
+  "name": "Personal Assistant",
+  "description": "A helpful AI assistant for everyday tasks",
+  "model": "claude-sonnet-4-5-20250929",
+  "systemPrompt": "You are a helpful, friendly personal assistant. You help with everyday tasks, answer questions, and assist with various requests. Be concise but thorough. You have access to email, browser, and various other skills to help accomplish tasks.\n\nKey behaviors:\n- Be proactive in offering to help\n- Ask clarifying questions when needed\n- Keep responses concise and actionable\n- Use your skills to actually accomplish tasks, not just describe them",
+  "temperature": 0.7,
+  "maxTokens": 4096,
+  "skills": [
+    "browser",
+    "email",
+    "http",
+    "file",
+    "scheduler"
+  ],
+  "channels": {
+    "imessage": {
+      "type": "bluebubbles",
+      "enabled": false,
+      "url": "",
+      "token": ""
+    },
+    "api": {
+      "type": "api",
+      "enabled": true
+    }
+  },
+  "memory": {
+    "type": "sqlite",
+    "maxMessages": 1000,
+    "summarizeAfter": 50
+  },
+  "unrestricted": true,
+  "autoStart": true,
+  "metadata": {
+    "tags": ["personal", "general"],
+    "version": "1.0.0"
+  }
+}

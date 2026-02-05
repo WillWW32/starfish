@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # Starfish Backend
+  backend:
+    build:
+      context: ./openclaw-fork
+      dockerfile: Dockerfile
+    container_name: starfish-backend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - BLUEBUBBLES_URL=${BLUEBUBBLES_URL}
+      - BLUEBUBBLES_TOKEN=${BLUEBUBBLES_TOKEN}
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+      - EMAIL_FROM=${EMAIL_FROM}
+      - API_KEY=${API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+    volumes:
+      - starfish-data:/app/data
+      - starfish-agents:/app/agents
+      - starfish-skills:/app/skills
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Starfish Dashboard
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: starfish-dashboard
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://backend:3000
+      - NEXT_PUBLIC_API_KEY=${API_KEY}
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Redis (optional - for memory store)
+  redis:
+    image: redis:7-alpine
+    container_name: starfish-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+volumes:
+  starfish-data:
+  starfish-agents:
+  starfish-skills:
+  redis-data:
