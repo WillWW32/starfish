@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install ALL dependencies (need devDeps for TypeScript build)
-RUN npm ci
+RUN npm install
 
 # Copy source
 COPY . .
@@ -50,7 +50,7 @@ WORKDIR /app
 
 # Copy package files and install production deps only
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev --ignore-scripts && npm rebuild bcrypt
 
 # Install Playwright browsers
 RUN npx playwright install chromium
