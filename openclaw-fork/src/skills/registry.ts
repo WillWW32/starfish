@@ -14,6 +14,7 @@ import { redditSkill } from './builtin/reddit.js';
 import { heygenSkill } from './builtin/heygen.js';
 import { klingSkill } from './builtin/kling.js';
 import { youtubeSkill } from './builtin/youtube.js';
+import { typefullySkill } from './builtin/typefully.js';
 
 export class SkillRegistry {
   private skills: Map<string, Skill> = new Map();
@@ -30,7 +31,8 @@ export class SkillRegistry {
       redditSkill,
       heygenSkill,
       klingSkill,
-      youtubeSkill
+      youtubeSkill,
+      typefullySkill
     ];
 
     for (const skill of builtinSkills) {

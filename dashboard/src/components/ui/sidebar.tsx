@@ -3,11 +3,12 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Bot, Zap, Settings, Home, Upload, MessageSquare, Calendar } from 'lucide-react';
+import { Bot, Zap, Settings, Home, Upload, MessageSquare, Calendar, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
+  { name: 'Team', href: '/team', icon: Users },
   { name: 'Agents', href: '/agents', icon: Bot },
   { name: 'Skills', href: '/skills', icon: Zap },
   { name: 'Campaigns', href: '/campaigns', icon: Calendar },
