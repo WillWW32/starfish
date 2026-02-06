@@ -1,5 +1,25 @@
 import { z } from 'zod';
 
+// Channel Configuration Schema
+export const ChannelConfigSchema = z.object({
+  type: z.enum(['imessage', 'bluebubbles', 'telegram', 'whatsapp', 'slack', 'api']),
+  enabled: z.boolean().default(true),
+  url: z.string().url().optional(),
+  token: z.string().optional(),
+  phoneNumber: z.string().optional(),
+  webhookSecret: z.string().optional(),
+  config: z.record(z.string(), z.any()).default({})
+});
+
+// Memory Configuration Schema
+export const MemoryConfigSchema = z.object({
+  type: z.enum(['sqlite', 'redis', 'memory']).default('sqlite'),
+  path: z.string().optional(),
+  redisUrl: z.string().optional(),
+  maxMessages: z.number().default(1000),
+  summarizeAfter: z.number().default(50)
+});
+
 // Agent Configuration Schema
 export const AgentConfigSchema = z.object({
   id: z.string().uuid(),
@@ -18,24 +38,6 @@ export const AgentConfigSchema = z.object({
   autoStart: z.boolean().default(true),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime()
-});
-
-export const ChannelConfigSchema = z.object({
-  type: z.enum(['imessage', 'bluebubbles', 'telegram', 'whatsapp', 'slack', 'api']),
-  enabled: z.boolean().default(true),
-  url: z.string().url().optional(),
-  token: z.string().optional(),
-  phoneNumber: z.string().optional(),
-  webhookSecret: z.string().optional(),
-  config: z.record(z.string(), z.any()).default({})
-});
-
-export const MemoryConfigSchema = z.object({
-  type: z.enum(['sqlite', 'redis', 'memory']).default('sqlite'),
-  path: z.string().optional(),
-  redisUrl: z.string().optional(),
-  maxMessages: z.number().default(1000),
-  summarizeAfter: z.number().default(50)
 });
 
 export const SkillSchema = z.object({
