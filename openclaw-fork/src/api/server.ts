@@ -40,9 +40,8 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
   app.addHook('preHandler', async (request, reply) => {
     const publicPaths = ['/health', '/api/auth/login', '/api/auth/verify-2fa'];
     if (publicPaths.includes(request.url)) return;
-    if (request.url.startsWith('/api/auth/')) return; // Auth routes handle their own auth
+    if (request.url.startsWith('/api/auth/')) return;
 
-    // Require authentication for all other API routes
     await authenticateUser(request, reply);
   });
 
@@ -51,7 +50,6 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
 
   // ===== AGENTS (Multi-Tenant) =====
 
-  // List agents for current user (admins see all)
   app.get('/api/agents', async (request) => {
     const user = request.currentUser!;
     const agents = agentManager.getAgentsForUser(user.id, user.is_admin === 1);
@@ -70,15 +68,12 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     };
   });
 
-  // Get single agent (with ownership check)
   app.get('/api/agents/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
     const user = request.currentUser!;
-
     if (!agentManager.canAccessAgent(user.id, id, user.is_admin === 1)) {
       return reply.code(403).send({ error: 'Access denied' });
     }
-
     const agent = agentManager.getAgent(id);
     if (!agent) {
       return reply.code(404).send({ error: 'Agent not found' });
@@ -86,7 +81,6 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     return { agent: agent.config };
   });
 
-  // Create agent (owned by current user)
   app.post('/api/agents', async (request) => {
     const config = request.body as any;
     const user = request.currentUser!;
@@ -94,15 +88,12 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     return { agent: agent.config };
   });
 
-  // Update agent (ownership required)
   app.put('/api/agents/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
     const user = request.currentUser!;
-
     if (!agentManager.canAccessAgent(user.id, id, user.is_admin === 1)) {
       return reply.code(403).send({ error: 'Access denied' });
     }
-
     const updates = request.body as any;
     try {
       const agent = await agentManager.updateAgent(id, updates);
@@ -112,15 +103,12 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     }
   });
 
-  // Delete agent (ownership required)
   app.delete('/api/agents/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
     const user = request.currentUser!;
-
     if (!agentManager.canAccessAgent(user.id, id, user.is_admin === 1)) {
       return reply.code(403).send({ error: 'Access denied' });
     }
-
     try {
       await agentManager.deleteAgent(id);
       return { deleted: true };
@@ -129,15 +117,12 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     }
   });
 
-  // Spawn sub-agent (ownership of parent required)
   app.post('/api/agents/:id/spawn', async (request, reply) => {
     const { id } = request.params as { id: string };
     const user = request.currentUser!;
-
     if (!agentManager.canAccessAgent(user.id, id, user.is_admin === 1)) {
       return reply.code(403).send({ error: 'Access denied' });
     }
-
     const config = request.body as any;
     try {
       const subAgent = await agentManager.spawnSubAgent(id, config);
@@ -147,15 +132,12 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     }
   });
 
-  // Send message to agent (access required)
   app.post('/api/agents/:id/message', async (request, reply) => {
     const { id } = request.params as { id: string };
     const user = request.currentUser!;
-
     if (!agentManager.canAccessAgent(user.id, id, user.is_admin === 1)) {
       return reply.code(403).send({ error: 'Access denied' });
     }
-
     const { content, channel = 'api', from } = request.body as any;
     try {
       const response = await agentManager.processMessage(id, {
@@ -171,11 +153,9 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     }
   });
 
-  // Team status endpoint — all agents for user with metrics
   app.get('/api/agents/team-status', async (request) => {
     const user = request.currentUser!;
     const agents = agentManager.getAgentsForUser(user.id, user.is_admin === 1);
-
     return {
       team: agents.map((a) => ({
         id: a.config.id,
@@ -195,7 +175,6 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
 
   // ===== SKILLS =====
 
-  // List all skills
   app.get('/api/skills', async () => {
     const skills = skillRegistry.getAllSkills();
     return {
@@ -211,39 +190,32 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     };
   });
 
-  // Upload skills
   app.post('/api/skills/upload', async (request, reply) => {
     const files = await request.saveRequestFiles();
     const fileData = files.map((f) => ({
       filename: f.filename,
       content: f.file as unknown as Buffer
     }));
-
     const result = await skillRegistry.uploadSkills(fileData);
     return result;
   });
 
-  // Enable/disable skill
   app.patch('/api/skills/:id', async (request, reply) => {
     const { id } = request.params as { id: string };
     const { enabled } = request.body as { enabled: boolean };
-
     const skill = skillRegistry.getSkill(id);
     if (!skill) {
       return reply.code(404).send({ error: 'Skill not found' });
     }
-
     skill.enabled = enabled;
     return { skill: { id: skill.id, enabled: skill.enabled } };
   });
 
   // ===== CONFIGS =====
 
-  // Export all configs
   app.get('/api/configs/export', async () => {
     const agents = agentManager.getAllAgents();
     const skills = skillRegistry.getAllSkills();
-
     return {
       version: '1.0.0',
       exportedAt: new Date().toISOString(),
@@ -259,24 +231,20 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     };
   });
 
-  // Import configs
   app.post('/api/configs/import', async (request) => {
     const data = request.body as any;
+    const user = request.currentUser!;
     const results = { agents: { created: 0, failed: 0 }, skills: { enabled: 0 } };
-
-    // Import agents
     if (data.agents) {
       for (const agentConfig of data.agents) {
         try {
-          await agentManager.createAgent(agentConfig);
+          await agentManager.createAgent(agentConfig, user.id);
           results.agents.created++;
         } catch {
           results.agents.failed++;
         }
       }
     }
-
-    // Enable imported skills
     if (data.skills) {
       for (const skillData of data.skills) {
         const skill = skillRegistry.getSkill(skillData.id);
@@ -286,22 +254,18 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
         }
       }
     }
-
     return { imported: true, results };
   });
 
   // ===== CHANNELS =====
 
-  // List channels
   app.get('/api/channels', async () => {
     return { channels: ['imessage', 'api'] };
   });
 
-  // Test channel
   app.post('/api/channels/:channel/test', async (request, reply) => {
     const { channel } = request.params as { channel: string };
     const { to, message } = request.body as { to: string; message: string };
-
     try {
       await channelManager.sendMessage(channel, to, message);
       return { sent: true };
