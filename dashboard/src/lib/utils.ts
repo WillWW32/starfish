@@ -18,10 +18,10 @@ export async function apiFetch<T>(
     ...options.headers
   };
 
-  // Add API key if set
-  const apiKey = process.env.NEXT_PUBLIC_API_KEY;
-  if (apiKey) {
-    (headers as Record<string, string>)['Authorization'] = `Bearer ${apiKey}`;
+  // Add JWT token from login
+  const token = typeof window !== 'undefined' ? localStorage.getItem('starfish_token') : null;
+  if (token) {
+    (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
   }
 
   const response = await fetch(url, {
