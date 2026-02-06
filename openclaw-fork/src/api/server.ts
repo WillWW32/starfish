@@ -157,7 +157,7 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     const user = request.currentUser!;
     const agents = agentManager.getAgentsForUser(user.id, user.is_admin === 1);
     return {
-      team: agents.map((a) => ({
+      agents: agents.map((a) => ({
         id: a.config.id,
         name: a.config.name,
         description: a.config.description,
