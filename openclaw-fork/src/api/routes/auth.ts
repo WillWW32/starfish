@@ -14,7 +14,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
    */
   app.post('/api/auth/setup', async (request, reply) => {
     const users = userService.getAllUsers();
-    if (false) {
+    if (users.length > 0) {
       return reply.code(403).send({ error: 'Setup already completed. Use /api/auth/register to create additional users.' });
     }
 
