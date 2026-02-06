@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAgents, sendMessage } from '@/hooks/useAgents';
 import { Send, Bot, User } from 'lucide-react';
@@ -11,7 +11,7 @@ interface Message {
   timestamp: Date;
 }
 
-export default function ChatPage() {
+function ChatPageContent() {
   const searchParams = useSearchParams();
   const initialAgentId = searchParams.get('agent');
   const { agents } = useAgents();
@@ -75,7 +75,6 @@ export default function ChatPage() {
           <h1 className="text-3xl font-bold">Chat</h1>
           <p className="text-muted-foreground mt-1">Test your agents in real-time</p>
         </div>
-
         <select
           value={selectedAgentId}
           onChange={(e) => {
@@ -115,7 +114,6 @@ export default function ChatPage() {
                   <Bot className="h-4 w-4 text-primary" />
                 </div>
               )}
-
               <div
                 className={`max-w-[70%] px-4 py-3 rounded-2xl ${
                   message.role === 'user'
@@ -132,7 +130,6 @@ export default function ChatPage() {
                   {message.timestamp.toLocaleTimeString()}
                 </p>
               </div>
-
               {message.role === 'user' && (
                 <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
                   <User className="h-4 w-4" />
@@ -141,7 +138,6 @@ export default function ChatPage() {
             </div>
           ))
         )}
-
         {isLoading && (
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -156,7 +152,6 @@ export default function ChatPage() {
             </div>
           </div>
         )}
-
         <div ref={messagesEndRef} />
       </div>
 
@@ -182,5 +177,13 @@ export default function ChatPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}>
+      <ChatPageContent />
+    </Suspense>
   );
 }
