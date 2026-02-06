@@ -32,6 +32,11 @@ const defaultConfig: StarfishConfig = {
       url: process.env.BLUEBUBBLES_URL,
       token: process.env.BLUEBUBBLES_TOKEN
     },
+    telegram: {
+      type: 'telegram',
+      enabled: false,
+      token: process.env.TELEGRAM_BOT_TOKEN
+    },
     api: {
       type: 'api',
       enabled: true
@@ -84,6 +89,11 @@ function applyEnvVars(config: StarfishConfig): StarfishConfig {
         enabled: !!process.env.BLUEBUBBLES_URL,
         url: process.env.BLUEBUBBLES_URL,
         token: process.env.BLUEBUBBLES_TOKEN
+      },
+      telegram: {
+        ...config.channels.telegram,
+        enabled: !!process.env.TELEGRAM_BOT_TOKEN,
+        token: process.env.TELEGRAM_BOT_TOKEN
       }
     }
   };

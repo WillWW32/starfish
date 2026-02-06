@@ -51,6 +51,17 @@ async function main() {
   await agentManager.loadAgents(config.agentsPath || './agents');
   console.log(`✅ Loaded ${agentManager.count()} agents`);
 
+  // Bind agents to their configured channels
+  for (const agent of agentManager.getAllAgents()) {
+    const agentChannels = agent.config.channels || {};
+    for (const [channelName, channelCfg] of Object.entries(agentChannels)) {
+      if (channelCfg && (channelCfg as any).enabled !== false) {
+        channelManager.registerAgent(channelName, agent);
+        console.log(`  🔗 Bound ${agent.config.name} → ${channelName}`);
+      }
+    }
+  }
+
   // Start API server
   const server = await startServer({
     port: PORT,

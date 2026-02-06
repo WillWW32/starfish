@@ -7,7 +7,7 @@
   "temperature": 0.8,
   "maxTokens": 4096,
   "skills": ["reddit", "typefully", "social", "http", "scraper", "email", "scheduler"],
-  "channels": {},
+  "channels": { "telegram": { "enabled": true } },
   "memory": {
     "type": "sqlite",
     "maxMessages": 2000,
