@@ -1,11 +1,22 @@
 'use client';
 
+import { useAuth } from '@/contexts/AuthContext';
 import { useAgents } from '@/hooks/useAgents';
 import { useSkills } from '@/hooks/useSkills';
 import { Bot, Zap, MessageSquare, Activity } from 'lucide-react';
 import Link from 'next/link';
+import LandingPage from '@/components/LandingPage';
 
-export default function Dashboard() {
+export default function Home() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) return null;
+  if (!isAuthenticated) return <LandingPage />;
+
+  return <Dashboard />;
+}
+
+function Dashboard() {
   const { agents, isLoading: agentsLoading } = useAgents();
   const { skills, isLoading: skillsLoading } = useSkills();
 
@@ -28,7 +39,7 @@ export default function Dashboard() {
     },
     {
       name: 'Messages Today',
-      value: '—',
+      value: '\u2014',
       total: null,
       icon: MessageSquare,
       href: '#',
@@ -51,7 +62,6 @@ export default function Dashboard() {
         <p className="text-muted-foreground mt-1">Manage your Starfish AI agents and automations</p>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat) => (
           <Link
@@ -75,41 +85,28 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Quick Actions */}
       <div className="bg-card border rounded-lg p-6">
         <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link
-            href="/agents/new"
-            className="flex items-center gap-3 p-4 bg-primary/10 rounded-lg hover:bg-primary/20 transition-colors"
-          >
+          <Link href="/agents/new" className="flex items-center gap-3 p-4 bg-primary/10 rounded-lg hover:bg-primary/20 transition-colors">
             <Bot className="h-5 w-5 text-primary" />
             <span>Create New Agent</span>
           </Link>
-          <Link
-            href="/skills"
-            className="flex items-center gap-3 p-4 bg-yellow-500/10 rounded-lg hover:bg-yellow-500/20 transition-colors"
-          >
+          <Link href="/skills" className="flex items-center gap-3 p-4 bg-yellow-500/10 rounded-lg hover:bg-yellow-500/20 transition-colors">
             <Zap className="h-5 w-5 text-yellow-500" />
             <span>Upload Skills</span>
           </Link>
-          <Link
-            href="/settings"
-            className="flex items-center gap-3 p-4 bg-emerald-500/10 rounded-lg hover:bg-emerald-500/20 transition-colors"
-          >
+          <Link href="/settings" className="flex items-center gap-3 p-4 bg-emerald-500/10 rounded-lg hover:bg-emerald-500/20 transition-colors">
             <Activity className="h-5 w-5 text-emerald-500" />
             <span>Configure Channels</span>
           </Link>
         </div>
       </div>
 
-      {/* Recent Agents */}
       <div className="bg-card border rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold">Recent Agents</h2>
-          <Link href="/agents" className="text-sm text-primary hover:underline">
-            View All
-          </Link>
+          <Link href="/agents" className="text-sm text-primary hover:underline">View All</Link>
         </div>
         {agentsLoading ? (
           <p className="text-muted-foreground">Loading...</p>
