@@ -42,9 +42,9 @@ const defaultConfig: StarfishConfig = {
       enabled: true
     }
   },
-  skillsPath: './skills',
-  agentsPath: './agents',
-  dataPath: './data'
+  skillsPath: process.env.SKILLS_PATH || './skills',
+  agentsPath: process.env.AGENTS_PATH || './agent-configs',
+  dataPath: process.env.DATA_PATH || './data'
 };
 
 export async function loadConfig(configPath?: string): Promise<StarfishConfig> {
