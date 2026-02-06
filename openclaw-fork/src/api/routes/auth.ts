@@ -10,6 +10,41 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   // ===== PUBLIC ROUTES =====
 
   /**
+   * POST /api/auth/setup — Bootstrap first admin (only works when no users exist)
+   */
+  app.post('/api/auth/setup', async (request, reply) => {
+    const users = userService.getAllUsers();
+    if (users.length > 0) {
+      return reply.code(403).send({ error: 'Setup already completed. Use /api/auth/register to create additional users.' });
+    }
+
+    const { email, username, password, displayName } = request.body as {
+      email: string;
+      username: string;
+      password: string;
+      displayName?: string;
+    };
+
+    if (!email || !username || !password) {
+      return reply.code(400).send({ error: 'Email, username, and password required' });
+    }
+
+    if (password.length < 8) {
+      return reply.code(400).send({ error: 'Password must be at least 8 characters' });
+    }
+
+    const user = await userService.createUser({ email, username, password, isAdmin: true, displayName });
+    const session = userService.createSession(user.id);
+
+    return {
+      message: 'Admin account created successfully',
+      token: session.token,
+      expiresAt: session.expires_at,
+      user
+    };
+  });
+
+  /**
    * POST /api/auth/login
    * Step 1: Validate credentials. If 2FA enabled, returns { requires2FA: true, tempToken }
    * Step 2 (if 2FA): Client calls /api/auth/verify-2fa with tempToken + TOTP code
@@ -28,7 +63,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
     // If 2FA is enabled, require verification
     if (user.totp_enabled) {
-      // Create a short-lived temp session (5 min) for 2FA verification
       const tempSession = userService.createSession(user.id);
       return {
         requires2FA: true,
@@ -54,7 +88,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   /**
    * POST /api/auth/verify-2fa
-   * Complete login with TOTP code after credentials validated
    */
   app.post('/api/auth/verify-2fa', async (request, reply) => {
     const { tempToken, code } = request.body as { tempToken: string; code: string };
@@ -77,7 +110,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(401).send({ error: 'Invalid 2FA code' });
     }
 
-    // Destroy temp session, create full session
     userService.destroySession(tempToken);
     const session = userService.createSession(user.id);
 
@@ -96,9 +128,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   // ===== AUTHENTICATED ROUTES =====
 
-  /**
-   * GET /api/auth/me — Get current user info
-   */
   app.get('/api/auth/me', { preHandler: [authenticateUser] }, async (request) => {
     const user = request.currentUser!;
     return {
@@ -114,15 +143,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
-  /**
-   * POST /api/auth/setup-2fa — Generate 2FA secret + QR code
-   */
   app.post('/api/auth/setup-2fa', { preHandler: [authenticateUser] }, async (request) => {
     const user = request.currentUser!;
     const setup = await Authenticator.setup(user.username);
-
-    // Store the secret (but don't enable yet — user must verify first)
-    // We store temporarily in metadata, enable on confirm
     return {
       secret: setup.secret,
       qrCode: setup.qrCodeDataUrl,
@@ -130,9 +153,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
-  /**
-   * POST /api/auth/confirm-2fa — Verify first code and enable 2FA
-   */
   app.post('/api/auth/confirm-2fa', { preHandler: [authenticateUser] }, async (request, reply) => {
     const { secret, code } = request.body as { secret: string; code: string };
     const user = request.currentUser!;
@@ -146,14 +166,10 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: 'Invalid code. Make sure your authenticator app is synced.' });
     }
 
-    // Enable 2FA
     userService.enableTotp(user.id, secret);
     return { enabled: true, message: '2FA enabled successfully' };
   });
 
-  /**
-   * POST /api/auth/disable-2fa — Disable 2FA (requires current code)
-   */
   app.post('/api/auth/disable-2fa', { preHandler: [authenticateUser] }, async (request, reply) => {
     const { code } = request.body as { code: string };
     const user = request.currentUser!;
@@ -171,18 +187,12 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     return { disabled: true, message: '2FA disabled' };
   });
 
-  /**
-   * POST /api/auth/logout — Destroy current session
-   */
   app.post('/api/auth/logout', { preHandler: [authenticateUser] }, async (request) => {
     const token = request.headers.authorization!.slice(7);
     userService.destroySession(token);
     return { loggedOut: true };
   });
 
-  /**
-   * POST /api/auth/change-password
-   */
   app.post('/api/auth/change-password', { preHandler: [authenticateUser] }, async (request, reply) => {
     const { currentPassword, newPassword } = request.body as { currentPassword: string; newPassword: string };
     const user = request.currentUser!;
@@ -195,7 +205,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(400).send({ error: 'Password must be at least 8 characters' });
     }
 
-    // Verify current password
     const authed = await userService.authenticate(user.email, currentPassword);
     if (!authed) {
       return reply.code(401).send({ error: 'Current password is incorrect' });
@@ -207,9 +216,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   // ===== ADMIN ROUTES =====
 
-  /**
-   * POST /api/auth/register — Create new user (admin only)
-   */
   app.post('/api/auth/register', { preHandler: [authenticateUser, requireAdmin] }, async (request, reply) => {
     const { email, username, password, isAdmin, displayName } = request.body as {
       email: string;
@@ -238,17 +244,11 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  /**
-   * GET /api/auth/users — List all users (admin only)
-   */
   app.get('/api/auth/users', { preHandler: [authenticateUser, requireAdmin] }, async () => {
     const users = userService.getAllUsers();
     return { users, count: users.length };
   });
 
-  /**
-   * DELETE /api/auth/users/:id — Delete user (admin only)
-   */
   app.delete('/api/auth/users/:id', { preHandler: [authenticateUser, requireAdmin] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const user = userService.getUserById(id);
