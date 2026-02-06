@@ -14,6 +14,7 @@ export default function ProtectedLayout({
   const pathname = usePathname();
   const { isAuthenticated, isLoading } = useAuth();
   const [shouldRender, setShouldRender] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (isLoading) {
@@ -34,6 +35,10 @@ export default function ProtectedLayout({
 
     setShouldRender(true);
   }, [isAuthenticated, isLoading, pathname, router]);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
 
   if (isLoading) {
     return (
@@ -58,8 +63,8 @@ export default function ProtectedLayout({
   // Protected layout - with sidebar
   return (
     <div className="flex h-screen bg-slate-900">
-      <Sidebar />
-      <main className="flex-1 overflow-auto p-8">{children}</main>
+      <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
+      <main className="flex-1 overflow-auto p-4 md:p-8 pt-16 md:pt-8">{children}</main>
     </div>
   );
 }

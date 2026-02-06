@@ -49,9 +49,33 @@ const features = [
   },
 ];
 
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Starfish AI',
+  applicationCategory: 'BusinessApplication',
+  url: 'https://bigstarfish.com',
+  description:
+    'Custom AI agent teams that handle outbound marketing, customer engagement, and content creation 24/7 for small business.',
+  offers: {
+    '@type': 'Offer',
+    category: 'Custom AI Agent Development',
+  },
+  creator: {
+    '@type': 'Organization',
+    name: 'EntreArtists',
+    url: 'https://entreartists.com',
+    email: 'jesse@entreartists.com',
+  },
+};
+
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Nav */}
       <nav className="flex items-center justify-between px-6 py-4 max-w-6xl mx-auto">
         <div className="flex items-center gap-3">
