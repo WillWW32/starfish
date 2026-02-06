@@ -20,14 +20,14 @@ export default function ProtectedLayout({
       return;
     }
 
-    const isLoginPage = pathname === '/login';
+    const isPublicPage = pathname === '/login' || pathname === '/';
 
-    if (!isAuthenticated && !isLoginPage) {
+    if (!isAuthenticated && !isPublicPage) {
       router.push('/login');
       return;
     }
 
-    if (isAuthenticated && isLoginPage) {
+    if (isAuthenticated && pathname === '/login') {
       router.push('/');
       return;
     }
@@ -35,7 +35,6 @@ export default function ProtectedLayout({
     setShouldRender(true);
   }, [isAuthenticated, isLoading, pathname, router]);
 
-  // Show loading spinner while checking authentication
   if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
@@ -51,8 +50,8 @@ export default function ProtectedLayout({
     return null;
   }
 
-  // Login page layout - no sidebar
-  if (pathname === '/login') {
+  // Public pages - no sidebar
+  if (pathname === '/login' || (pathname === '/' && !isAuthenticated)) {
     return children;
   }
 
