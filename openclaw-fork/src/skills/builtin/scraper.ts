@@ -74,10 +74,10 @@ export const scraperSkill: Skill = {
               if (!containerEl) return [];
 
               const itemEls = containerEl.querySelectorAll(item);
-              return Array.from(itemEls).map((el) => {
+              return Array.from(itemEls as NodeListOf<Element>).map((el) => {
                 const data: Record<string, any> = {};
                 for (const [field, selector] of Object.entries(fields || {})) {
-                  const fieldEl = el.querySelector(selector as string);
+                  const fieldEl = (el as Element).querySelector(selector as string);
                   data[field] = fieldEl?.textContent?.trim() || null;
                 }
                 return data;
@@ -104,10 +104,10 @@ export const scraperSkill: Skill = {
                 if (!containerEl) return [];
 
                 const itemEls = containerEl.querySelectorAll(item);
-                return Array.from(itemEls).map((el) => {
+                return Array.from(itemEls as NodeListOf<Element>).map((el) => {
                   const data: Record<string, any> = {};
                   for (const [field, selector] of Object.entries(fields || {})) {
-                    const fieldEl = el.querySelector(selector as string);
+                    const fieldEl = (el as Element).querySelector(selector as string);
                     data[field] = fieldEl?.textContent?.trim() || null;
                   }
                   return data;
