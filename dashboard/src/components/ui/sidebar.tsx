@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { Bot, Zap, Settings, Home, Upload, MessageSquare, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -21,9 +22,7 @@ export default function Sidebar() {
     <div className="flex flex-col w-64 bg-card border-r">
       {/* Logo */}
       <div className="flex items-center gap-2 px-6 py-5 border-b">
-        <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-          <span className="text-primary-foreground font-bold">S</span>
-        </div>
+        <Image src="/starfish-logo.png" alt="Starfish" width={32} height={32} />
         <span className="text-xl font-semibold">Starfish</span>
       </div>
 
