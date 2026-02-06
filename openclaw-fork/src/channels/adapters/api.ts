@@ -6,7 +6,7 @@ import { ChannelAdapter } from '../manager.js';
 export class ApiAdapter implements ChannelAdapter {
   name: string;
   private config: ChannelConfig;
-  private messageHandler?: (from: string, content: string, metadata?: any) => Promise<string>;
+  private messageHandler?: (from: string, content: string, metadata: any) => Promise<string>;
   private pendingResponses: Map<string, { resolve: (value: string) => void }> = new Map();
 
   constructor(name: string, config: ChannelConfig) {
@@ -38,12 +38,13 @@ export class ApiAdapter implements ChannelAdapter {
       return 'No agent configured for this channel.';
     }
 
+    const handler = this.messageHandler;
     return new Promise(async (resolve) => {
       // Store the resolver so sendMessage can complete it
       this.pendingResponses.set(requestId, { resolve });
 
       try {
-        const response = await this.messageHandler(from, content, { requestId });
+        const response = await handler(from, content, { requestId });
         resolve(response);
       } catch (err) {
         resolve(`Error: ${err}`);
@@ -53,7 +54,7 @@ export class ApiAdapter implements ChannelAdapter {
     });
   }
 
-  onMessage(handler: (from: string, content: string, metadata?: any) => Promise<string>): void {
+  onMessage(handler: (from: string, content: string, metadata: any) => Promise<string>): void {
     this.messageHandler = handler;
   }
 }
