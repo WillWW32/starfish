@@ -112,44 +112,44 @@ export default function TalkPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 flex flex-col">
-      <header className="border-b border-slate-700/50 px-6 py-4">
+      <header className="border-b border-slate-700/50 px-4 sm:px-6 py-3 sm:py-4">
         <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
-              <Bot className="h-5 w-5 text-white" />
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+              <Bot className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white">{agentName}</h1>
+              <h1 className="text-base sm:text-lg font-bold text-white">{agentName}</h1>
               <p className="text-xs text-slate-400">Your AI Employee Demo</p>
             </div>
           </div>
-          <Link href="/login" className="text-sm text-blue-400 hover:text-blue-300 transition-colors">Sign In</Link>
+          <Link href="/login" className="text-sm text-blue-400 hover:text-blue-300 transition-colors flex-shrink-0">Sign In</Link>
         </div>
       </header>
 
-      <div className="flex-1 overflow-auto px-6 py-6">
-        <div className="max-w-3xl mx-auto space-y-4">
+      <div className="flex-1 overflow-auto px-3 sm:px-6 py-4 sm:py-6">
+        <div className="max-w-3xl mx-auto space-y-3 sm:space-y-4">
           {messages.map((message, i) => (
-            <div key={i} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div key={i} className={`flex gap-2 sm:gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {message.role === 'assistant' && (
-                <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
-                  <Bot className="h-4 w-4 text-blue-400" />
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-blue-600/20 flex items-center justify-center flex-shrink-0">
+                  <Bot className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-400" />
                 </div>
               )}
-              <div className={`max-w-[80%] px-4 py-3 rounded-2xl ${message.role === 'user' ? 'bg-blue-600 text-white rounded-br-md' : 'bg-slate-700/50 text-slate-200 rounded-bl-md'}`}>
-                <p className="whitespace-pre-wrap">{message.content}</p>
+              <div className={`max-w-[85%] sm:max-w-[75%] px-3 sm:px-4 py-2.5 sm:py-3 rounded-2xl ${message.role === 'user' ? 'bg-blue-600 text-white rounded-br-md' : 'bg-slate-700/50 text-slate-200 rounded-bl-md'}`}>
+                <p className="whitespace-pre-wrap text-sm sm:text-base break-words">{message.content}</p>
               </div>
               {message.role === 'user' && (
-                <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
-                  <User className="h-4 w-4 text-slate-300" />
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
+                  <User className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-slate-300" />
                 </div>
               )}
             </div>
           ))}
           {isLoading && (
-            <div className="flex gap-3">
-              <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center"><Bot className="h-4 w-4 text-blue-400" /></div>
-              <div className="bg-slate-700/50 px-4 py-3 rounded-2xl rounded-bl-md">
+            <div className="flex gap-2 sm:gap-3">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-blue-600/20 flex items-center justify-center"><Bot className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-400" /></div>
+              <div className="bg-slate-700/50 px-3 sm:px-4 py-2.5 sm:py-3 rounded-2xl rounded-bl-md">
                 <div className="flex gap-1">
                   <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" />
                   <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:100ms]" />
@@ -162,22 +162,22 @@ export default function TalkPage() {
         </div>
       </div>
 
-      <div className="border-t border-slate-700/50 px-6 py-4">
-        <div className="max-w-3xl mx-auto flex gap-2">
+      <div className="border-t border-slate-700/50 px-3 sm:px-6 py-3 sm:py-4">
+        <div className="max-w-3xl mx-auto flex gap-1.5 sm:gap-2">
           <input type="text" value={input} onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
             placeholder={isTranscribing ? 'Transcribing...' : 'Tell me about your business...'}
             disabled={isLoading}
-            className="flex-1 px-4 py-3 bg-slate-800 border border-slate-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-500 disabled:opacity-50"
+            className="flex-1 min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-800 border border-slate-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-slate-500 disabled:opacity-50 text-sm sm:text-base"
           />
           <button onClick={isRecording ? stopRecording : startRecording} disabled={isLoading || isTranscribing}
-            className={`px-4 py-3 rounded-lg transition-colors disabled:opacity-50 ${isRecording ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+            className={`px-2.5 sm:px-4 py-2.5 sm:py-3 rounded-lg transition-colors disabled:opacity-50 flex-shrink-0 ${isRecording ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
             title={isRecording ? 'Stop recording' : 'Voice input'}>
-            {isRecording ? <Square className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+            {isRecording ? <Square className="h-4 w-4 sm:h-5 sm:w-5" /> : <Mic className="h-4 w-4 sm:h-5 sm:w-5" />}
           </button>
           <button onClick={handleSend} disabled={!input.trim() || isLoading}
-            className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors disabled:opacity-50">
-            <Send className="h-5 w-5" />
+            className="px-3 sm:px-4 py-2.5 sm:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors disabled:opacity-50 flex-shrink-0">
+            <Send className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
         </div>
         <p className="max-w-3xl mx-auto text-xs text-slate-500 mt-2 text-center">Powered by Starfish AI — Custom AI employees for your business</p>

@@ -9,8 +9,54 @@ import { UserService } from './users/service.js';
 
 const PORT = parseInt(process.env.PORT || '3000', 10);
 
+function validateEnvVars(): void {
+  const required: Record<string, string[]> = {
+    'Core LLM': ['ANTHROPIC_API_KEY'],
+    'Auth': ['JWT_SECRET', 'ADMIN_EMAIL', 'ADMIN_PASSWORD']
+  };
+  const optional: Record<string, string[]> = {
+    'Email (Resend)': ['RESEND_API_KEY'],
+    'Email (SMTP)': ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'],
+    'HeyGen Video': ['HEYGEN_API_KEY'],
+    'Kling Video': ['KLING_API_KEY'],
+    'Typefully': ['TYPEFULLY_API_KEY'],
+    'Reddit Proxy': ['BRIGHTDATA_PROXY_SERVER', 'BRIGHTDATA_PROXY_USER', 'BRIGHTDATA_PROXY_PASS'],
+    'YouTube': ['YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET', 'YOUTUBE_REFRESH_TOKEN'],
+    'Telegram': ['TELEGRAM_BOT_TOKEN'],
+    'iMessage': ['BLUEBUBBLES_URL', 'BLUEBUBBLES_TOKEN']
+  };
+
+  console.log('🔑 Environment variable check:');
+  for (const [group, vars] of Object.entries(required)) {
+    const missing = vars.filter(v => !process.env[v]);
+    if (missing.length > 0) {
+      console.error(`  ❌ ${group}: MISSING [${missing.join(', ')}]`);
+    } else {
+      console.log(`  ✅ ${group}: all set`);
+    }
+  }
+
+  const enabledSkills: string[] = [];
+  const disabledSkills: string[] = [];
+  for (const [group, vars] of Object.entries(optional)) {
+    const set = vars.filter(v => !!process.env[v]);
+    if (set.length === vars.length) {
+      enabledSkills.push(group);
+    } else if (set.length > 0) {
+      console.warn(`  ⚠️ ${group}: partial [${vars.filter(v => !process.env[v]).join(', ')} missing]`);
+    } else {
+      disabledSkills.push(group);
+    }
+  }
+  if (enabledSkills.length > 0) console.log(`  ✅ Skills ready: ${enabledSkills.join(', ')}`);
+  if (disabledSkills.length > 0) console.log(`  ⏭️ Skills without keys: ${disabledSkills.join(', ')}`);
+}
+
 async function main() {
   console.log('🐙 Starting Starfish Agent System...');
+
+  // Validate environment variables
+  validateEnvVars();
 
   // Initialize database
   getDatabase();

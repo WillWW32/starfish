@@ -164,14 +164,14 @@ function ChatPageContent() {
   const selectedAgent = agents?.find((a: any) => a.id === selectedAgentId);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
+    <div className="flex flex-col h-[calc(100vh-4rem)] max-w-4xl mx-auto w-full">
       {/* Header */}
-      <div className="flex items-center justify-between pb-4 border-b">
-        <div>
-          <h1 className="text-3xl font-bold">Chat</h1>
-          <p className="text-muted-foreground mt-1">Test your agents in real-time</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold">Chat</h1>
+          <p className="text-muted-foreground text-sm mt-1 hidden sm:block">Test your agents in real-time</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {selectedAgentId && messages.length > 0 && (
             <button
               onClick={clearHistory}
@@ -187,7 +187,7 @@ function ChatPageContent() {
               setSelectedAgentId(e.target.value);
               setMessages([]);
             }}
-            className="px-4 py-2 bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+            className="px-3 py-2 bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm w-full sm:w-auto"
           >
             <option value="">Select an agent...</option>
             {agents?.map((agent: any) => (
@@ -200,7 +200,7 @@ function ChatPageContent() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-auto py-4 space-y-4">
+      <div className="flex-1 overflow-auto py-4 space-y-4 min-h-0">
         {!selectedAgentId ? (
           <div className="text-center py-12 text-muted-foreground">
             Select an agent to start chatting
@@ -212,20 +212,20 @@ function ChatPageContent() {
           </div>
         ) : (
           messages.map((message, i) => (
-            <div key={i} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div key={i} className={`flex gap-2 sm:gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {message.role === 'assistant' && (
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <Bot className="h-4 w-4 text-primary" />
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Bot className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
                 </div>
               )}
               <div
-                className={`max-w-[70%] px-4 py-3 rounded-2xl ${
+                className={`max-w-[85%] sm:max-w-[70%] px-3 sm:px-4 py-2.5 sm:py-3 rounded-2xl ${
                   message.role === 'user'
                     ? 'bg-primary text-primary-foreground rounded-br-md'
                     : 'bg-muted rounded-bl-md'
                 }`}
               >
-                <p className="whitespace-pre-wrap">{message.content}</p>
+                <p className="whitespace-pre-wrap text-sm sm:text-base break-words">{message.content}</p>
                 <p
                   className={`text-xs mt-1 ${
                     message.role === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground'
@@ -235,19 +235,19 @@ function ChatPageContent() {
                 </p>
               </div>
               {message.role === 'user' && (
-                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                  <User className="h-4 w-4" />
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                  <User className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </div>
               )}
             </div>
           ))
         )}
         {isLoading && (
-          <div className="flex gap-3">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <Bot className="h-4 w-4 text-primary" />
+          <div className="flex gap-2 sm:gap-3">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary/10 flex items-center justify-center">
+              <Bot className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
             </div>
-            <div className="bg-muted px-4 py-3 rounded-2xl rounded-bl-md">
+            <div className="bg-muted px-3 sm:px-4 py-2.5 sm:py-3 rounded-2xl rounded-bl-md">
               <div className="flex gap-1">
                 <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
                 <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce delay-100" />
@@ -260,44 +260,44 @@ function ChatPageContent() {
       </div>
 
       {/* Input */}
-      <div className="pt-4 border-t">
-        <div className="flex gap-2">
+      <div className="pt-3 sm:pt-4 border-t">
+        <div className="flex gap-1.5 sm:gap-2">
           <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={!selectedAgentId || isLoading}
-            className="px-3 py-3 bg-background border rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
+            className="px-2.5 sm:px-3 py-2.5 sm:py-3 bg-background border rounded-lg hover:bg-muted transition-colors disabled:opacity-50 flex-shrink-0"
             title="Upload file"
           >
-            <Paperclip className="h-5 w-5 text-muted-foreground" />
+            <Paperclip className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
           </button>
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-            placeholder={isTranscribing ? 'Transcribing...' : selectedAgentId ? 'Type a message...' : 'Select an agent first'}
+            placeholder={isTranscribing ? 'Transcribing...' : selectedAgentId ? 'Type a message...' : 'Select agent first'}
             disabled={!selectedAgentId || isLoading}
-            className="flex-1 px-4 py-3 bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+            className="flex-1 min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 text-sm sm:text-base"
           />
           <button
             onClick={isRecording ? stopRecording : startRecording}
             disabled={!selectedAgentId || isLoading || isTranscribing}
-            className={`px-3 py-3 rounded-lg transition-colors disabled:opacity-50 ${
+            className={`px-2.5 sm:px-3 py-2.5 sm:py-3 rounded-lg transition-colors disabled:opacity-50 flex-shrink-0 ${
               isRecording
                 ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
                 : 'bg-background border hover:bg-muted'
             }`}
             title={isRecording ? 'Stop recording' : 'Voice input'}
           >
-            {isRecording ? <Square className="h-5 w-5" /> : <Mic className="h-5 w-5 text-muted-foreground" />}
+            {isRecording ? <Square className="h-4 w-4 sm:h-5 sm:w-5" /> : <Mic className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />}
           </button>
           <button
             onClick={handleSend}
             disabled={!selectedAgentId || !input.trim() || isLoading}
-            className="px-4 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
+            className="px-3 sm:px-4 py-2.5 sm:py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex-shrink-0"
           >
-            <Send className="h-5 w-5" />
+            <Send className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
         </div>
       </div>

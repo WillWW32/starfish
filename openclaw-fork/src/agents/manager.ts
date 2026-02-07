@@ -94,6 +94,9 @@ export class AgentManager {
    * Bind registered skills to an agent based on its config
    */
   private bindSkillsToAgent(agent: Agent): void {
+    const bound: string[] = [];
+    const skipped: string[] = [];
+
     for (const skillId of agent.config.skills) {
       const skill = this.skillRegistry.getSkill(skillId);
       if (skill && skill.enabled && skill.execute) {
@@ -101,7 +104,17 @@ export class AgentManager {
           { name: skill.id, description: skill.description, parameters: skill.parameters as any },
           skill.execute
         );
+        bound.push(skillId);
+      } else {
+        const reason = !skill ? 'not found in registry' : !skill.enabled ? 'disabled' : 'no execute fn';
+        skipped.push(`${skillId} (${reason})`);
+        console.warn(`  ⚠️ Skill "${skillId}" not bound to ${agent.config.name}: ${reason}`);
       }
+    }
+
+    console.log(`  🔧 ${agent.config.name}: ${bound.length} tools bound [${bound.join(', ')}]`);
+    if (skipped.length > 0) {
+      console.warn(`  ❌ ${agent.config.name}: ${skipped.length} skills skipped [${skipped.join(', ')}]`);
     }
   }
 
