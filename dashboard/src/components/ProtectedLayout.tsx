@@ -64,7 +64,7 @@ export default function ProtectedLayout({
   return (
     <div className="flex h-screen bg-slate-900">
       <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
-      <main className="flex-1 overflow-auto p-4 md:p-8 pt-16 md:pt-8">{children}</main>
+      <main className="flex-1 min-w-0 overflow-auto p-4 md:p-8 pt-16 md:pt-8">{children}</main>
     </div>
   );
 }

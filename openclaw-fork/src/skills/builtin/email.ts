@@ -25,7 +25,7 @@ function getTransporter() {
 export const emailSkill: Skill = {
   id: 'email',
   name: 'Email Outbound',
-  description: 'Send emails via Gmail SMTP or Resend. Supports single and bulk sending.',
+  description: 'Send emails. Gmail SMTP is pre-configured — just call with action, to, subject, and text/html. No API keys needed from you.',
   version: '2.0.0',
   enabled: true,
   parameters: {
