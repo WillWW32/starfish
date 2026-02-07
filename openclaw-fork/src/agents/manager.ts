@@ -104,7 +104,7 @@ export class AgentManager {
         const delegateSkill = createDelegateSkill(this);
         agent.registerTool(
           { name: delegateSkill.id, description: delegateSkill.description, parameters: delegateSkill.parameters as any },
-          delegateSkill.execute
+          delegateSkill.execute!
         );
         bound.push('delegate');
         continue;

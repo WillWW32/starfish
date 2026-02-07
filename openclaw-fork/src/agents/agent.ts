@@ -169,7 +169,7 @@ export class Agent {
         .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
     );
 
-    // Build tools for Claude
+    // Build tools for Claude API (uses input_schema)
     const tools = this.toolDefinitions.map(t => ({
       name: t.name,
       description: t.description,
@@ -180,7 +180,7 @@ export class Agent {
     const budget = estimateContextBudget(
       systemPrompt,
       messages,
-      tools,
+      this.toolDefinitions,
       this.knowledgeContent
     );
     if (budget.total > 100000) {
