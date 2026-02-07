@@ -128,6 +128,7 @@ async function main() {
   const { TaskScheduler } = await import('./tasks/scheduler.js');
   const taskScheduler = new TaskScheduler(agentManager);
   await taskScheduler.initialize();
+  agentManager.setTaskScheduler(taskScheduler);
   console.log('✅ Task Scheduler initialized');
 
   // Start API server

@@ -4,6 +4,7 @@ import { SkillRegistry } from '../skills/registry.js';
 import { ChannelManager } from '../channels/manager.js';
 import { getDatabase } from '../db/database.js';
 import { createDelegateSkill } from '../skills/builtin/delegate.js';
+import { createTaskManagerSkill } from '../skills/builtin/taskManager.js';
 import { v4 as uuid } from 'uuid';
 import fs from 'fs/promises';
 import path from 'path';
@@ -12,11 +13,31 @@ export class AgentManager {
   private agents: Map<string, Agent> = new Map();
   private skillRegistry: SkillRegistry;
   private channelManager: ChannelManager;
+  private taskScheduler: any = null;
 
   constructor(skillRegistry: SkillRegistry, channelManager: ChannelManager) {
     this.skillRegistry = skillRegistry;
     this.channelManager = channelManager;
     this.initializeAgentsTable();
+  }
+
+  /**
+   * Set the task scheduler reference (called after scheduler is initialized)
+   * Re-binds task-manager skill to agents that have it configured
+   */
+  setTaskScheduler(scheduler: any): void {
+    this.taskScheduler = scheduler;
+    // Re-bind task-manager skill to agents that have it in their skills list
+    for (const agent of this.agents.values()) {
+      if (agent.config.skills.includes('task-manager')) {
+        const skill = createTaskManagerSkill(this.taskScheduler);
+        agent.registerTool(
+          { name: skill.id, description: skill.description, parameters: skill.parameters as any },
+          skill.execute!
+        );
+        console.log(`  📅 Bound task-manager skill to ${agent.config.name}`);
+      }
+    }
   }
 
   /**
@@ -107,6 +128,22 @@ export class AgentManager {
           delegateSkill.execute!
         );
         bound.push('delegate');
+        continue;
+      }
+
+      // Task-manager skill needs taskScheduler reference (bound later if scheduler not ready yet)
+      if (skillId === 'task-manager') {
+        if (this.taskScheduler) {
+          const tmSkill = createTaskManagerSkill(this.taskScheduler);
+          agent.registerTool(
+            { name: tmSkill.id, description: tmSkill.description, parameters: tmSkill.parameters as any },
+            tmSkill.execute!
+          );
+          bound.push('task-manager');
+        } else {
+          // Will be bound later via setTaskScheduler()
+          bound.push('task-manager (pending)');
+        }
         continue;
       }
 
