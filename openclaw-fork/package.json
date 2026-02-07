@@ -33,6 +33,7 @@
     "node-cron": "^3.0.3",
     "p-queue": "^8.0.0",
     "pdf-parse": "^1.1.1",
+    "stripe": "^14.0.0",
     "speakeasy": "^2.0.0",
     "bcrypt": "^5.1.1",
     "qrcode": "^1.5.4"

@@ -21,7 +21,7 @@ export default function ProtectedLayout({
       return;
     }
 
-    const isPublicPage = pathname === '/login' || pathname === '/' || pathname === '/talk';
+    const isPublicPage = pathname === '/login' || pathname === '/' || pathname === '/talk' || pathname.startsWith('/checkout') || pathname === '/pricing';
 
     if (!isAuthenticated && !isPublicPage) {
       router.push('/login');
@@ -56,7 +56,7 @@ export default function ProtectedLayout({
   }
 
   // Public pages - no sidebar
-  if (pathname === '/login' || pathname === '/talk' || (pathname === '/' && !isAuthenticated)) {
+  if (pathname === '/login' || pathname === '/talk' || pathname.startsWith('/checkout') || pathname === '/pricing' || (pathname === '/' && !isAuthenticated)) {
     return children;
   }
 

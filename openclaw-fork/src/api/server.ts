@@ -23,7 +23,17 @@ interface ServerOptions {
 export async function startServer(options: ServerOptions): Promise<FastifyInstance> {
   const { port, agentManager, skillRegistry, channelManager } = options;
 
-  const app = Fastify({ logger: false });
+  const app = Fastify({ logger: false, bodyLimit: 5 * 1024 * 1024 });
+
+  // Capture raw body for Stripe webhook verification
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+    try {
+      (req as any).rawBody = body;
+      done(null, JSON.parse(body as string));
+    } catch (err: any) {
+      done(err, undefined);
+    }
+  });
 
   // Plugins
   await app.register(cors, { origin: true });
@@ -43,6 +53,8 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     if (publicPaths.includes(request.url)) return;
     if (request.url.startsWith('/api/auth/')) return;
     if (request.url.startsWith('/api/public/')) return;
+    if (request.url.startsWith('/api/checkout')) return;
+    if (request.url === '/api/stripe/webhook') return;
     if (request.url === '/api/transcribe') return;
 
     await authenticateUser(request, reply);
@@ -557,6 +569,143 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     }
     const { getSyncStatus } = await import('../sync/daemon.js');
     return getSyncStatus(id);
+  });
+
+  // ===== STRIPE CHECKOUT =====
+
+  const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY;
+  const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+  const DASHBOARD_URL = process.env.DASHBOARD_URL || 'https://starfish-dashboard.vercel.app';
+
+  // Create checkout session for $500 audit
+  app.post('/api/checkout/audit', async (request, reply) => {
+    if (!STRIPE_SECRET) return reply.code(500).send({ error: 'Stripe not configured' });
+
+    const { email, businessName, visitorId } = request.body as { email?: string; businessName?: string; visitorId?: string };
+
+    try {
+      const Stripe = (await import('stripe')).default;
+      const stripe = new Stripe(STRIPE_SECRET);
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [{
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: 'Starfish AI — Site Audit',
+              description: 'Comprehensive business audit + AI employee blueprint. Applies as deposit toward agent build ($4,000+).'
+            },
+            unit_amount: 50000 // $500 in cents
+          },
+          quantity: 1
+        }],
+        mode: 'payment',
+        success_url: `${DASHBOARD_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${DASHBOARD_URL}/checkout/cancel`,
+        customer_email: email || undefined,
+        metadata: {
+          type: 'site_audit',
+          businessName: businessName || '',
+          visitorId: visitorId || ''
+        }
+      });
+
+      return { url: session.url, sessionId: session.id };
+    } catch (err: any) {
+      return reply.code(500).send({ error: err.message });
+    }
+  });
+
+  // Create checkout session for agent build (custom amount)
+  app.post('/api/checkout/build', async (request, reply) => {
+    if (!STRIPE_SECRET) return reply.code(500).send({ error: 'Stripe not configured' });
+
+    const { email, businessName, tier, visitorId } = request.body as {
+      email?: string; businessName?: string; tier: 'starter' | 'growth' | 'enterprise'; visitorId?: string;
+    };
+
+    const prices: Record<string, { amount: number; name: string; desc: string }> = {
+      starter: { amount: 400000, name: 'Starfish AI — Starter Agent', desc: '1 AI employee, 6 skills, 30-day tuning. $500 audit deposit applied.' },
+      growth: { amount: 600000, name: 'Starfish AI — Growth Agent', desc: '1 AI employee, 10 skills, delegation, 60-day tuning. $500 audit deposit applied.' },
+      enterprise: { amount: 1000000, name: 'Starfish AI — Enterprise Agent', desc: 'Multi-agent team, all skills, knowledge base, 90-day tuning. $500 audit deposit applied.' }
+    };
+
+    const selected = prices[tier] || prices.starter;
+
+    try {
+      const Stripe = (await import('stripe')).default;
+      const stripe = new Stripe(STRIPE_SECRET);
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        line_items: [{
+          price_data: {
+            currency: 'usd',
+            product_data: { name: selected.name, description: selected.desc },
+            unit_amount: selected.amount
+          },
+          quantity: 1
+        }],
+        mode: 'payment',
+        success_url: `${DASHBOARD_URL}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${DASHBOARD_URL}/checkout/cancel`,
+        customer_email: email || undefined,
+        metadata: {
+          type: 'agent_build',
+          tier,
+          businessName: businessName || '',
+          visitorId: visitorId || ''
+        }
+      });
+
+      return { url: session.url, sessionId: session.id };
+    } catch (err: any) {
+      return reply.code(500).send({ error: err.message });
+    }
+  });
+
+  // Stripe webhook — update lead status on payment
+  app.post('/api/stripe/webhook', {
+    config: { rawBody: true }
+  }, async (request, reply) => {
+    if (!STRIPE_SECRET || !STRIPE_WEBHOOK_SECRET) return reply.code(500).send({ error: 'Stripe not configured' });
+
+    const sig = request.headers['stripe-signature'] as string;
+    if (!sig) return reply.code(400).send({ error: 'Missing signature' });
+
+    try {
+      const Stripe = (await import('stripe')).default;
+      const stripe = new Stripe(STRIPE_SECRET);
+      const rawBody = (request as any).rawBody || JSON.stringify(request.body);
+      const event = stripe.webhooks.constructEvent(rawBody, sig, STRIPE_WEBHOOK_SECRET);
+
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object as any;
+        const { type, visitorId, businessName, tier } = session.metadata || {};
+        const customerEmail = session.customer_email || session.customer_details?.email;
+
+        // Update lead in database
+        const { getOrCreateLead, updateLeadStatus, updateLeadInfo } = await import('../leads/store.js');
+        if (visitorId) {
+          const lead = getOrCreateLead(visitorId);
+          updateLeadStatus(lead.id, 'hot');
+          updateLeadInfo(lead.id, {
+            contactEmail: customerEmail || null,
+            businessName: businessName || null,
+            nextStep: type === 'site_audit'
+              ? 'Audit paid ($500). Schedule audit call and begin analysis.'
+              : `Agent build paid (${tier}). Begin agent configuration.`
+          });
+          console.log(`  💰 Payment received: ${type} from ${customerEmail || visitorId} — $${session.amount_total / 100}`);
+        }
+      }
+
+      return { received: true };
+    } catch (err: any) {
+      console.warn('  ⚠️ Stripe webhook error:', err.message);
+      return reply.code(400).send({ error: err.message });
+    }
   });
 
   // ===== TRANSCRIPTION (AssemblyAI) =====
