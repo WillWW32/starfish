@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Bot, Zap, Settings, Home, MessageSquare, Calendar, Users, Menu, X, BookOpen, UserCheck } from 'lucide-react';
+import { Bot, Zap, Settings, Home, MessageSquare, Calendar, Users, Menu, X, BookOpen, UserCheck, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navigation = [
@@ -13,6 +13,7 @@ const navigation = [
   { name: 'Skills', href: '/skills', icon: Zap },
   { name: 'Knowledge', href: '/knowledge', icon: BookOpen },
   { name: 'Leads', href: '/leads', icon: UserCheck },
+  { name: 'Tasks', href: '/tasks', icon: Clock },
   { name: 'Campaigns', href: '/campaigns', icon: Calendar },
   { name: 'Chat', href: '/chat', icon: MessageSquare },
   { name: 'Settings', href: '/settings', icon: Settings }

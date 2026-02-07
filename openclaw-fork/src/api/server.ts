@@ -18,10 +18,11 @@ interface ServerOptions {
   agentManager: AgentManager;
   skillRegistry: SkillRegistry;
   channelManager: ChannelManager;
+  taskScheduler?: any;
 }
 
 export async function startServer(options: ServerOptions): Promise<FastifyInstance> {
-  const { port, agentManager, skillRegistry, channelManager } = options;
+  const { port, agentManager, skillRegistry, channelManager, taskScheduler } = options;
 
   const app = Fastify({ logger: false, bodyLimit: 5 * 1024 * 1024 });
 
@@ -829,6 +830,96 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     } catch (err: any) {
       return reply.code(400).send({ error: err.message });
     }
+  });
+
+  // ===== SCHEDULED TASKS =====
+
+  app.get('/api/tasks', async (request) => {
+    const { agentId } = request.query as { agentId?: string };
+    const { getAllTasks, getTasksByAgent } = await import('../tasks/store.js');
+    const tasks = agentId ? getTasksByAgent(agentId) : getAllTasks();
+    return { tasks, count: tasks.length };
+  });
+
+  app.get('/api/tasks/templates', async () => {
+    const { TASK_TEMPLATES, CRON_PRESETS } = await import('../tasks/templates.js');
+    const templates = Object.values(TASK_TEMPLATES).map(t => ({
+      taskType: t.taskType, label: t.label, description: t.description,
+      defaultConfig: t.defaultConfig, configFields: t.configFields
+    }));
+    return { templates, cronPresets: CRON_PRESETS };
+  });
+
+  app.post('/api/tasks', async (request, reply) => {
+    const { agentId, name, taskType, cronExpression, config, description, timezone } = request.body as any;
+    if (!agentId || !name || !taskType || !cronExpression) {
+      return reply.code(400).send({ error: 'agentId, name, taskType, cronExpression required' });
+    }
+    if (!agentManager.getAgent(agentId)) {
+      return reply.code(404).send({ error: 'Agent not found' });
+    }
+    const { createTask } = await import('../tasks/store.js');
+    try {
+      const task = createTask(agentId, name, taskType, cronExpression, config || {}, description, timezone);
+      // Register with live scheduler
+      if (taskScheduler) taskScheduler.scheduleTask(task);
+      return { task };
+    } catch (err: any) {
+      return reply.code(500).send({ error: err.message });
+    }
+  });
+
+  app.get('/api/tasks/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { getTask, getExecutionLogs } = await import('../tasks/store.js');
+    const task = getTask(id);
+    if (!task) return reply.code(404).send({ error: 'Task not found' });
+    const logs = getExecutionLogs(id, 20);
+    return { task, recentLogs: logs };
+  });
+
+  app.patch('/api/tasks/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const updates = request.body as any;
+    const { updateTask, getTask } = await import('../tasks/store.js');
+    const existing = getTask(id);
+    if (!existing) return reply.code(404).send({ error: 'Task not found' });
+
+    const task = updateTask(id, updates);
+    // Re-schedule or unschedule based on enabled status
+    if (taskScheduler && task) {
+      if (task.enabled) {
+        taskScheduler.scheduleTask(task);
+      } else {
+        taskScheduler.unscheduleTask(id);
+      }
+    }
+    return { task };
+  });
+
+  app.delete('/api/tasks/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { deleteTask, getTask } = await import('../tasks/store.js');
+    const task = getTask(id);
+    if (!task) return reply.code(404).send({ error: 'Task not found' });
+    if (taskScheduler) taskScheduler.unscheduleTask(id);
+    deleteTask(id);
+    return { deleted: true };
+  });
+
+  app.post('/api/tasks/:id/run-now', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    if (!taskScheduler) return reply.code(500).send({ error: 'Scheduler not initialized' });
+    const result = await taskScheduler.runNow(id);
+    return result;
+  });
+
+  app.get('/api/tasks/:id/logs', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { limit } = request.query as { limit?: string };
+    const { getExecutionLogs } = await import('../tasks/store.js');
+    const logs = getExecutionLogs(id, parseInt(limit || '50', 10));
+    return { logs, count: logs.length };
   });
 
   // Start server

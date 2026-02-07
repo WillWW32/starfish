@@ -122,12 +122,21 @@ async function main() {
     }
   }
 
+  // Initialize task scheduler (persistent cron jobs)
+  const { initTasksTables } = await import('./tasks/store.js');
+  initTasksTables();
+  const { TaskScheduler } = await import('./tasks/scheduler.js');
+  const taskScheduler = new TaskScheduler(agentManager);
+  await taskScheduler.initialize();
+  console.log('✅ Task Scheduler initialized');
+
   // Start API server
   const server = await startServer({
     port: PORT,
     agentManager,
     skillRegistry,
-    channelManager
+    channelManager,
+    taskScheduler
   });
 
   console.log(`🚀 Starfish API running on http://localhost:${PORT}`);
@@ -137,6 +146,7 @@ async function main() {
   // Graceful shutdown
   process.on('SIGINT', async () => {
     console.log('\n🛑 Shutting down...');
+    await taskScheduler.shutdown();
     await agentManager.stopAll();
     await channelManager.disconnectAll();
     closeDatabase();
