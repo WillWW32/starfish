@@ -42,6 +42,17 @@ async function humanDelay(range: { min: number; max: number }): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, randomDelay(range)));
 }
 
+// Auto-read Bright Data proxy from env vars
+function getDefaultProxy(): RedditAccount['proxy'] | undefined {
+  const server = process.env.BRIGHTDATA_PROXY_SERVER;
+  if (!server) return undefined;
+  return {
+    server,
+    username: process.env.BRIGHTDATA_PROXY_USER,
+    password: process.env.BRIGHTDATA_PROXY_PASS
+  };
+}
+
 // Stealth configuration for Playwright
 function getStealthContext(account?: RedditAccount): any {
   const defaultFingerprint = {
@@ -289,7 +300,7 @@ export const redditSkill: Skill = {
         accounts[params.username] = {
           username: params.username,
           password: params.password,
-          proxy: params.proxy,
+          proxy: params.proxy || getDefaultProxy(),
           fingerprint: params.fingerprint,
           warmedUp: false
         };

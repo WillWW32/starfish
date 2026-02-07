@@ -17,8 +17,8 @@ async function typefullyPost(content: string, options: {
   scheduleDate?: string;
   autoRetweet?: boolean;
 } = {}) {
-  const apiKey = process.env.TYPEFULLY_API_KEY;
-  if (!apiKey) throw new Error('TYPEFULLY_API_KEY not set');
+  const apiKey = process.env.TYPEFULLY;
+  if (!apiKey) throw new Error('TYPEFULLY not set');
 
   const response = await axios.post(
     'https://api.typefully.com/v1/drafts/',
@@ -229,7 +229,7 @@ export const socialSkill: Skill = {
     } = params;
 
     // ===== TYPEFULLY (X/Twitter) =====
-    if (action === 'post_typefully' || (action === 'post' && platform === 'twitter' && process.env.TYPEFULLY_API_KEY)) {
+    if (action === 'post_typefully' || (action === 'post' && platform === 'twitter' && process.env.TYPEFULLY)) {
       const result = await typefullyPost(content, {
         threadify,
         scheduleDate: scheduleAt,
@@ -265,7 +265,7 @@ export const socialSkill: Skill = {
     if (action === 'schedule') {
       if (!scheduleAt) throw new Error('scheduleAt required for scheduling');
 
-      if (platform === 'twitter' && process.env.TYPEFULLY_API_KEY) {
+      if (platform === 'twitter' && process.env.TYPEFULLY) {
         const result = await typefullyPost(content, {
           threadify,
           scheduleDate: scheduleAt,
@@ -286,7 +286,7 @@ export const socialSkill: Skill = {
         return { success: true, method: 'publer', scheduled: scheduleAt, post: result };
       }
 
-      throw new Error('No scheduling service configured (need TYPEFULLY_API_KEY or PUBLER_API_KEY)');
+      throw new Error('No scheduling service configured (need TYPEFULLY or PUBLER_API_KEY)');
     }
 
     // ===== DIRECT TWITTER API (Legacy/Fallback) =====
