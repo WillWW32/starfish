@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { AgentConfig, Message, ToolDefinition, ExecutionContext } from '../types.js';
 import { MemoryStore } from '../memory/store.js';
+import { estimateContextBudget, estimateTokens } from '../utils/tokenCounter.js';
 import { v4 as uuid } from 'uuid';
 
 export class Agent {
@@ -12,6 +13,7 @@ export class Agent {
   private running: boolean = false;
   private tools: Map<string, (params: any) => Promise<any>> = new Map();
   private toolDefinitions: ToolDefinition[] = [];
+  private knowledgeContent: string = ''; // injected by KnowledgeManager
 
   constructor(config: AgentConfig) {
     this.config = config;
@@ -43,6 +45,57 @@ export class Agent {
   }
 
   /**
+   * Set knowledge content to inject into system prompt
+   */
+  setKnowledge(content: string): void {
+    this.knowledgeContent = content;
+  }
+
+  /**
+   * Build system prompt with optional knowledge injection
+   */
+  private buildSystemPrompt(): string {
+    if (!this.knowledgeContent) return this.config.systemPrompt;
+    return `${this.config.systemPrompt}\n\n## KNOWLEDGE BASE\n${this.knowledgeContent}`;
+  }
+
+  /**
+   * Auto-summarize if history is too large, using Claude to compress
+   */
+  private async maybeSummarize(history: Message[]): Promise<void> {
+    const messageCount = await this.memory.getMessageCount();
+    const threshold = this.config.memory?.summarizeAfter || 100;
+
+    if (messageCount <= threshold) return;
+
+    // Only summarize if we have Claude available
+    if (!this.anthropic) return;
+
+    try {
+      const oldMessages = history.slice(0, Math.floor(history.length * 0.6));
+      const conversationText = oldMessages
+        .map(m => `${m.role}: ${m.content.substring(0, 500)}`)
+        .join('\n');
+
+      const summaryResponse = await this.anthropic.messages.create({
+        model: 'claude-sonnet-4-5-20250929',
+        max_tokens: 1000,
+        system: 'Summarize this conversation into key facts, decisions, and action items. Be extremely concise. Max 500 words.',
+        messages: [{ role: 'user', content: conversationText }]
+      });
+
+      const summaryText = summaryResponse.content.find((b: any) => b.type === 'text');
+      if (summaryText) {
+        await this.memory.storeSummary((summaryText as any).text, oldMessages.length);
+        await this.memory.archiveOldMessages(40); // keep last 40 messages
+        console.log(`  📝 ${this.config.name}: Summarized ${oldMessages.length} messages, kept 40 recent`);
+      }
+    } catch (err: any) {
+      console.warn(`  ⚠️ ${this.config.name}: Summarization failed: ${err.message}`);
+    }
+  }
+
+  /**
    * Process an incoming message and return a response
    */
   async processMessage(message: Omit<Message, 'id' | 'timestamp'>): Promise<Message> {
@@ -54,17 +107,23 @@ export class Agent {
     };
     await this.memory.addMessage(incomingMsg);
 
-    // Get conversation history (use config limit or default 100)
+    // Get conversation history
     const historyLimit = this.config.memory?.summarizeAfter || 100;
     const history = await this.memory.getMessages(historyLimit);
+
+    // Auto-summarize if history is getting large
+    await this.maybeSummarize(history);
+
+    // Re-fetch after potential summarization
+    const currentHistory = await this.memory.getMessages(historyLimit);
 
     // Generate response via LLM
     let responseContent: string;
 
     if (this.anthropic && this.config.model.startsWith('claude')) {
-      responseContent = await this.callClaude(history);
+      responseContent = await this.callClaude(currentHistory);
     } else if (this.openai) {
-      responseContent = await this.callOpenAI(history);
+      responseContent = await this.callOpenAI(currentHistory);
     } else {
       responseContent = 'No LLM configured for this agent.';
     }
@@ -85,9 +144,30 @@ export class Agent {
   }
 
   private async callClaude(history: Message[]): Promise<string> {
-    const messages = history
-      .filter(m => m.role === 'user' || m.role === 'assistant')
-      .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+    // Build system prompt with knowledge
+    const systemPrompt = this.buildSystemPrompt();
+
+    // Prepend conversation summary if available
+    const summary = await this.memory.getLatestSummary();
+    const messages: { role: 'user' | 'assistant'; content: any }[] = [];
+
+    if (summary) {
+      messages.push({
+        role: 'user',
+        content: `[Previous conversation summary: ${summary}]`
+      });
+      messages.push({
+        role: 'assistant',
+        content: 'Understood. I have context from our previous conversation. How can I help?'
+      });
+    }
+
+    // Add current history
+    messages.push(
+      ...history
+        .filter(m => m.role === 'user' || m.role === 'assistant')
+        .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+    );
 
     // Build tools for Claude
     const tools = this.toolDefinitions.map(t => ({
@@ -96,11 +176,22 @@ export class Agent {
       input_schema: t.parameters as any
     }));
 
+    // Log context budget (debug)
+    const budget = estimateContextBudget(
+      systemPrompt,
+      messages,
+      tools,
+      this.knowledgeContent
+    );
+    if (budget.total > 100000) {
+      console.warn(`  ⚠️ ${this.config.name}: High context usage: ${Math.round(budget.total / 1000)}K tokens`);
+    }
+
     let response = await this.anthropic!.messages.create({
       model: this.config.model,
       max_tokens: this.config.maxTokens,
       temperature: this.config.temperature,
-      system: this.config.systemPrompt,
+      system: systemPrompt,
       messages,
       ...(tools.length > 0 ? { tools } : {})
     });
@@ -140,7 +231,7 @@ export class Agent {
         model: this.config.model,
         max_tokens: this.config.maxTokens,
         temperature: this.config.temperature,
-        system: this.config.systemPrompt,
+        system: systemPrompt,
         messages,
         ...(tools.length > 0 ? { tools } : {})
       });

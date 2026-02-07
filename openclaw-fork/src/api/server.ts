@@ -239,10 +239,27 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
       return reply.code(503).send({ error: 'Sales agent not available' });
     }
     try {
+      // Log lead conversation
+      const { getOrCreateLead, addLeadMessage } = await import('../leads/store.js');
+      const vid = visitorId || 'anonymous';
+      const lead = getOrCreateLead(vid);
+      addLeadMessage(lead.id, 'user', content.trim());
+
+      // Tag message so Boss knows to use PUBLIC CHAT MODE (consultant, not executor)
+      const taggedContent = `[PUBLIC] ${content.trim()}`;
       const response = await agentManager.processMessage(PUBLIC_AGENT_ID, {
         agentId: PUBLIC_AGENT_ID, channel: 'web-public', role: 'user',
-        content: content.trim(), metadata: { from: visitorId || 'anonymous', public: true }
+        content: taggedContent, metadata: { from: vid, public: true }
       });
+
+      // Log assistant response
+      addLeadMessage(lead.id, 'assistant', response.content);
+
+      // Extract lead info async (doesn't block response)
+      import('../leads/extractor.js').then(({ extractLeadInfo }) => {
+        extractLeadInfo(lead.id).catch(() => {});
+      });
+
       return { response: response.content };
     } catch (err: any) {
       return reply.code(500).send({ error: err.message });
@@ -253,6 +270,50 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     const agent = agentManager.getAgent(PUBLIC_AGENT_ID);
     if (!agent) return { available: false };
     return { available: true, name: agent.config.name, description: agent.config.description };
+  });
+
+  // ===== LEADS MANAGEMENT =====
+
+  app.get('/api/leads', async (request, reply) => {
+    const user = request.currentUser!;
+    if (user.is_admin !== 1) return reply.code(403).send({ error: 'Admin access required' });
+    const { getAllLeads } = await import('../leads/store.js');
+    return { leads: getAllLeads() };
+  });
+
+  app.get('/api/leads/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.currentUser!;
+    if (user.is_admin !== 1) return reply.code(403).send({ error: 'Admin access required' });
+    const { getLead, getLeadMessages, getLeadComments } = await import('../leads/store.js');
+    const lead = getLead(id);
+    if (!lead) return reply.code(404).send({ error: 'Lead not found' });
+    return { lead, messages: getLeadMessages(id), comments: getLeadComments(id) };
+  });
+
+  app.patch('/api/leads/:id', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.currentUser!;
+    if (user.is_admin !== 1) return reply.code(403).send({ error: 'Admin access required' });
+    const body = request.body as any;
+    const { updateLeadStatus, updateLeadNotes, updateLeadInfo, getLead } = await import('../leads/store.js');
+    if (body.status) updateLeadStatus(id, body.status);
+    if (body.notes !== undefined) updateLeadNotes(id, body.notes);
+    if (body.contactEmail || body.businessName || body.useCase || body.channels || body.nextStep || body.contactName) {
+      updateLeadInfo(id, body);
+    }
+    return { lead: getLead(id) };
+  });
+
+  app.post('/api/leads/:id/comments', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.currentUser!;
+    if (user.is_admin !== 1) return reply.code(403).send({ error: 'Admin access required' });
+    const { content } = request.body as { content: string };
+    if (!content?.trim()) return reply.code(400).send({ error: 'Comment content required' });
+    const { addLeadComment } = await import('../leads/store.js');
+    const comment = addLeadComment(id, user.display_name || user.username, content.trim());
+    return { comment };
   });
 
   // ===== CONVERSATION HISTORY =====
@@ -334,6 +395,168 @@ export async function startServer(options: ServerOptions): Promise<FastifyInstan
     if (!fs.existsSync(filePath)) return reply.code(404).send({ error: 'File not found' });
     fs.unlinkSync(filePath);
     return { deleted: true, filename };
+  });
+
+  // ===== KNOWLEDGE BASE =====
+
+  app.post('/api/agents/:id/knowledge', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.currentUser!;
+    if (!agentManager.canAccessAgent(user.id, id, user.is_admin === 1)) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
+    const { ingestKnowledgeFile, ingestPdfFile } = await import('../memory/knowledgeManager.js');
+
+    let filename: string;
+    let content: string;
+    let isPdf = false;
+    let pdfBuffer: Buffer | null = null;
+
+    // Support both JSON body and multipart upload
+    const contentType = request.headers['content-type'] || '';
+    if (contentType.includes('application/json')) {
+      const body = request.body as { filename?: string; content?: string };
+      if (!body.filename || !body.content) {
+        return reply.code(400).send({ error: 'filename and content required' });
+      }
+      filename = body.filename;
+      content = body.content;
+    } else {
+      const data = await request.file();
+      if (!data) return reply.code(400).send({ error: 'No file provided' });
+      const chunks: Buffer[] = [];
+      for await (const chunk of data.file) chunks.push(chunk);
+      const buffer = Buffer.concat(chunks);
+      filename = data.filename;
+      if (filename.toLowerCase().endsWith('.pdf')) {
+        isPdf = true;
+        pdfBuffer = buffer;
+        content = ''; // Will be extracted by ingestPdfFile
+      } else {
+        content = buffer.toString('utf-8');
+      }
+    }
+
+    try {
+      const item = isPdf && pdfBuffer
+        ? await ingestPdfFile(id, filename, pdfBuffer)
+        : await ingestKnowledgeFile(id, filename, content);
+
+      // Refresh agent's knowledge cache
+      const { getAgentKnowledge } = await import('../memory/knowledgeManager.js');
+      const agent = agentManager.getAgent(id);
+      if (agent) {
+        (agent as any).setKnowledge(getAgentKnowledge(id));
+      }
+
+      return { success: true, item: { id: item.id, filename: item.filename, summary: item.summary, tokens: item.tokens } };
+    } catch (err: any) {
+      return reply.code(500).send({ error: err.message });
+    }
+  });
+
+  app.get('/api/agents/:id/knowledge', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.currentUser!;
+    if (!agentManager.canAccessAgent(user.id, id, user.is_admin === 1)) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
+    const { listAgentKnowledge, getTokenCost } = await import('../memory/knowledgeManager.js');
+    const items = listAgentKnowledge(id);
+    const totalTokens = getTokenCost(id);
+
+    return {
+      items: items.map(i => ({ id: i.id, filename: i.filename, summary: i.summary, tokens: i.tokens, createdAt: i.createdAt })),
+      totalTokens
+    };
+  });
+
+  app.delete('/api/agents/:id/knowledge/:itemId', async (request, reply) => {
+    const { id, itemId } = request.params as { id: string; itemId: string };
+    const user = request.currentUser!;
+    if (!agentManager.canAccessAgent(user.id, id, user.is_admin === 1)) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+
+    const { removeKnowledgeItem, getAgentKnowledge } = await import('../memory/knowledgeManager.js');
+    const deleted = removeKnowledgeItem(itemId);
+
+    // Refresh agent's knowledge cache
+    const agent = agentManager.getAgent(id);
+    if (agent) {
+      (agent as any).setKnowledge(getAgentKnowledge(id));
+    }
+
+    return { deleted };
+  });
+
+  // ===== KNOWLEDGE SHARING =====
+
+  app.post('/api/agents/:id/knowledge/share', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.currentUser!;
+    if (!agentManager.canAccessAgent(user.id, id, user.is_admin === 1)) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+    const { targetAgentId, itemIds } = request.body as { targetAgentId: string; itemIds?: string[] };
+    if (!targetAgentId) return reply.code(400).send({ error: 'targetAgentId required' });
+    if (!agentManager.getAgent(targetAgentId)) return reply.code(404).send({ error: 'Target agent not found' });
+
+    const { shareKnowledge, getAgentKnowledge } = await import('../memory/knowledgeManager.js');
+    try {
+      const shared = shareKnowledge(id, targetAgentId, itemIds);
+      // Refresh target agent's knowledge cache
+      const targetAgent = agentManager.getAgent(targetAgentId);
+      if (targetAgent) {
+        (targetAgent as any).setKnowledge(getAgentKnowledge(targetAgentId));
+      }
+      return { success: true, sharedCount: shared };
+    } catch (err: any) {
+      return reply.code(500).send({ error: err.message });
+    }
+  });
+
+  // ===== SYNC DAEMON =====
+
+  app.post('/api/agents/:id/sync', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.currentUser!;
+    if (!agentManager.canAccessAgent(user.id, id, user.is_admin === 1)) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+    const { folderPath, intervalSeconds } = request.body as { folderPath: string; intervalSeconds?: number };
+    if (!folderPath) return reply.code(400).send({ error: 'folderPath required' });
+
+    const { startSyncDaemon } = await import('../sync/daemon.js');
+    try {
+      startSyncDaemon(id, folderPath, intervalSeconds || 30, agentManager);
+      return { success: true, watching: folderPath, interval: intervalSeconds || 30 };
+    } catch (err: any) {
+      return reply.code(500).send({ error: err.message });
+    }
+  });
+
+  app.delete('/api/agents/:id/sync', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.currentUser!;
+    if (!agentManager.canAccessAgent(user.id, id, user.is_admin === 1)) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+    const { stopSyncDaemon } = await import('../sync/daemon.js');
+    stopSyncDaemon(id);
+    return { success: true, stopped: true };
+  });
+
+  app.get('/api/agents/:id/sync', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const user = request.currentUser!;
+    if (!agentManager.canAccessAgent(user.id, id, user.is_admin === 1)) {
+      return reply.code(403).send({ error: 'Access denied' });
+    }
+    const { getSyncStatus } = await import('../sync/daemon.js');
+    return getSyncStatus(id);
   });
 
   // ===== TRANSCRIPTION (AssemblyAI) =====

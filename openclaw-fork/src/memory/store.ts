@@ -39,6 +39,14 @@ export class MemoryStore {
             timestamp TEXT NOT NULL
           );
           CREATE INDEX IF NOT EXISTS idx_agent_timestamp ON messages(agent_id, timestamp);
+          CREATE TABLE IF NOT EXISTS summaries (
+            id TEXT PRIMARY KEY,
+            agent_id TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            message_count INTEGER NOT NULL,
+            created_at TEXT NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_summary_agent ON summaries(agent_id, created_at);
         `);
         break;
       }
@@ -160,6 +168,81 @@ export class MemoryStore {
         break;
       }
     }
+  }
+
+  /**
+   * Store a conversation summary (used when archiving old messages)
+   */
+  async storeSummary(summary: string, messageCount: number): Promise<void> {
+    if (this.config.type === 'sqlite' && this.db) {
+      this.db.prepare(`
+        INSERT INTO summaries (id, agent_id, summary, message_count, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(uuid(), this.agentId, summary, messageCount, new Date().toISOString());
+    }
+  }
+
+  /**
+   * Get the latest conversation summary
+   */
+  async getLatestSummary(): Promise<string | null> {
+    if (this.config.type === 'sqlite' && this.db) {
+      const row = this.db.prepare(`
+        SELECT summary FROM summaries WHERE agent_id = ? ORDER BY created_at DESC LIMIT 1
+      `).get(this.agentId) as { summary: string } | undefined;
+      return row?.summary || null;
+    }
+    return null;
+  }
+
+  /**
+   * Archive old messages: keep recent N, delete the rest.
+   * Call storeSummary() before this to preserve context.
+   */
+  async archiveOldMessages(keepRecent: number = 20): Promise<number> {
+    if (this.config.type === 'sqlite' && this.db) {
+      // Get IDs of messages to keep
+      const recentIds = this.db.prepare(`
+        SELECT id FROM messages WHERE agent_id = ? ORDER BY timestamp DESC LIMIT ?
+      `).all(this.agentId, keepRecent) as { id: string }[];
+
+      const keepSet = new Set(recentIds.map(r => r.id));
+
+      // Count messages to delete
+      const totalCount = this.db.prepare(`
+        SELECT COUNT(*) as count FROM messages WHERE agent_id = ?
+      `).get(this.agentId) as { count: number };
+
+      const deleteCount = totalCount.count - keepSet.size;
+      if (deleteCount <= 0) return 0;
+
+      // Delete old messages (keep recent ones)
+      if (keepSet.size > 0) {
+        const placeholders = recentIds.map(() => '?').join(',');
+        this.db.prepare(`
+          DELETE FROM messages WHERE agent_id = ? AND id NOT IN (${placeholders})
+        `).run(this.agentId, ...recentIds.map(r => r.id));
+      }
+
+      return deleteCount;
+    }
+    return 0;
+  }
+
+  /**
+   * Get message count for this agent
+   */
+  async getMessageCount(): Promise<number> {
+    if (this.config.type === 'sqlite' && this.db) {
+      const row = this.db.prepare(`
+        SELECT COUNT(*) as count FROM messages WHERE agent_id = ?
+      `).get(this.agentId) as { count: number };
+      return row.count;
+    }
+    if (this.config.type === 'memory') {
+      return this.inMemory.length;
+    }
+    return 0;
   }
 
   async close(): Promise<void> {

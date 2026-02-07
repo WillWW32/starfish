@@ -58,8 +58,12 @@ async function main() {
   // Validate environment variables
   validateEnvVars();
 
-  // Initialize database
+  // Initialize database + knowledge tables
   getDatabase();
+  const { initKnowledgeTables } = await import('./memory/knowledgeStore.js');
+  initKnowledgeTables();
+  const { initLeadsTables } = await import('./leads/store.js');
+  initLeadsTables();
   console.log('✅ Database initialized');
 
   // Bootstrap admin user if none exists
@@ -96,6 +100,16 @@ async function main() {
   const agentManager = new AgentManager(skillRegistry, channelManager);
   await agentManager.loadAgents(config.agentsPath || './agents');
   console.log(`✅ Loaded ${agentManager.count()} agents`);
+
+  // Load knowledge bases for all agents
+  const { getAgentKnowledge } = await import('./memory/knowledgeManager.js');
+  for (const agent of agentManager.getAllAgents()) {
+    const knowledge = getAgentKnowledge(agent.config.id);
+    if (knowledge) {
+      (agent as any).setKnowledge(knowledge);
+      console.log(`  📚 ${agent.config.name}: Knowledge loaded`);
+    }
+  }
 
   // Bind agents to their configured channels
   for (const agent of agentManager.getAllAgents()) {

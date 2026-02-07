@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAgents, sendMessage } from '@/hooks/useAgents';
-import { Send, Bot, User, Mic, Square, Trash2, Paperclip } from 'lucide-react';
+import { Send, Bot, User, Mic, Square, Trash2, Paperclip, AlertTriangle } from 'lucide-react';
 import { API_URL, apiFetch } from '@/lib/utils';
 
 interface Message {
@@ -163,6 +163,12 @@ function ChatPageContent() {
 
   const selectedAgent = agents?.find((a: any) => a.id === selectedAgentId);
 
+  // Estimate token usage from messages (~4 chars per token)
+  const estimatedTokens = messages.reduce((sum, m) => sum + Math.ceil(m.content.length / 4), 0);
+  const TOKEN_LIMIT = 180000; // ~200K with system prompt overhead
+  const tokenPercent = Math.round((estimatedTokens / TOKEN_LIMIT) * 100);
+  const showTokenWarning = tokenPercent > 60;
+
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] max-w-4xl mx-auto w-full">
       {/* Header */}
@@ -198,6 +204,19 @@ function ChatPageContent() {
           </select>
         </div>
       </div>
+
+      {/* Token Warning */}
+      {showTokenWarning && selectedAgentId && (
+        <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs mt-2 ${
+          tokenPercent > 85 ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+        }`}>
+          <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+          <span>
+            Context: ~{Math.round(estimatedTokens / 1000)}K / {Math.round(TOKEN_LIMIT / 1000)}K tokens ({tokenPercent}%).
+            {tokenPercent > 85 ? ' Session nearing limit — older messages will be auto-compressed.' : ' Auto-compression will kick in soon.'}
+          </span>
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-auto py-4 space-y-4 min-h-0">

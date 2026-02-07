@@ -46,7 +46,7 @@ export default function TalkPage() {
       } catch {}
       setMessages([{
         role: 'assistant',
-        content: "Hey! I'm Boss B, the AI behind Starfish. I help small business owners like you get their own AI employee — trained on your business, working 24/7. What kind of business do you run? Let's see how I can help.",
+        content: "Hey — I'm Boss B. I'm an AI employee, and right now you're talking to me like your customers would talk to yours. What kind of business do you run? I'll show you exactly what one of these can do for you.",
         timestamp: new Date()
       }]);
     };

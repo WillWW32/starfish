@@ -3,6 +3,7 @@ import { AgentConfig, Message } from '../types.js';
 import { SkillRegistry } from '../skills/registry.js';
 import { ChannelManager } from '../channels/manager.js';
 import { getDatabase } from '../db/database.js';
+import { createDelegateSkill } from '../skills/builtin/delegate.js';
 import { v4 as uuid } from 'uuid';
 import fs from 'fs/promises';
 import path from 'path';
@@ -98,6 +99,17 @@ export class AgentManager {
     const skipped: string[] = [];
 
     for (const skillId of agent.config.skills) {
+      // Delegate skill is special — needs agentManager reference via factory
+      if (skillId === 'delegate') {
+        const delegateSkill = createDelegateSkill(this);
+        agent.registerTool(
+          { name: delegateSkill.id, description: delegateSkill.description, parameters: delegateSkill.parameters as any },
+          delegateSkill.execute
+        );
+        bound.push('delegate');
+        continue;
+      }
+
       const skill = this.skillRegistry.getSkill(skillId);
       if (skill && skill.enabled && skill.execute) {
         agent.registerTool(
