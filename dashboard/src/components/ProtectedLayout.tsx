@@ -21,7 +21,7 @@ export default function ProtectedLayout({
       return;
     }
 
-    const isPublicPage = pathname === '/login' || pathname === '/';
+    const isPublicPage = pathname === '/login' || pathname === '/' || pathname === '/talk';
 
     if (!isAuthenticated && !isPublicPage) {
       router.push('/login');
@@ -56,7 +56,7 @@ export default function ProtectedLayout({
   }
 
   // Public pages - no sidebar
-  if (pathname === '/login' || (pathname === '/' && !isAuthenticated)) {
+  if (pathname === '/login' || pathname === '/talk' || (pathname === '/' && !isAuthenticated)) {
     return children;
   }
 

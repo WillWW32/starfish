@@ -54,8 +54,9 @@ export class Agent {
     };
     await this.memory.addMessage(incomingMsg);
 
-    // Get conversation history
-    const history = await this.memory.getMessages(50);
+    // Get conversation history (use config limit or default 100)
+    const historyLimit = this.config.memory?.summarizeAfter || 100;
+    const history = await this.memory.getMessages(historyLimit);
 
     // Generate response via LLM
     let responseContent: string;

@@ -3,7 +3,8 @@
 import { useState, useRef, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAgents, sendMessage } from '@/hooks/useAgents';
-import { Send, Bot, User } from 'lucide-react';
+import { Send, Bot, User, Mic, Square, Trash2, Paperclip } from 'lucide-react';
+import { API_URL, apiFetch } from '@/lib/utils';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -20,7 +21,12 @@ function ChatPageContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (initialAgentId) {
@@ -32,37 +38,127 @@ function ChatPageContent() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Load conversation history when agent selected
+  useEffect(() => {
+    if (!selectedAgentId) return;
+    const loadHistory = async () => {
+      try {
+        const data = await apiFetch<{ messages: any[] }>(`/api/agents/${selectedAgentId}/messages`);
+        if (data.messages && data.messages.length > 0) {
+          setMessages(
+            data.messages.map((m: any) => ({
+              role: m.role,
+              content: m.content,
+              timestamp: new Date(m.timestamp || Date.now()),
+            }))
+          );
+        }
+      } catch {
+        // No history or endpoint not available yet
+      }
+    };
+    loadHistory();
+  }, [selectedAgentId]);
+
   const handleSend = async () => {
     if (!input.trim() || !selectedAgentId) return;
-
-    const userMessage: Message = {
-      role: 'user',
-      content: input.trim(),
-      timestamp: new Date()
-    };
-
+    const userMessage: Message = { role: 'user', content: input.trim(), timestamp: new Date() };
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
-
     try {
       const response = await sendMessage(selectedAgentId, userMessage.content);
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: response.response,
-        timestamp: new Date()
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: response.response, timestamp: new Date() }]);
     } catch (err: any) {
-      const errorMessage: Message = {
-        role: 'assistant',
-        content: `Error: ${err.message}`,
-        timestamp: new Date()
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${err.message}`, timestamp: new Date() }]);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const clearHistory = async () => {
+    if (!selectedAgentId) return;
+    try {
+      await apiFetch(`/api/agents/${selectedAgentId}/messages`, { method: 'DELETE' });
+      setMessages([]);
+    } catch {
+      // ignore
+    }
+  };
+
+  // Voice recording
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      mediaRecorderRef.current = mediaRecorder;
+      chunksRef.current = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        await transcribeAudio(audioBlob);
+      };
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Mic access denied:', err);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const transcribeAudio = async (audioBlob: Blob) => {
+    setIsTranscribing(true);
+    try {
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'recording.webm');
+      const token = localStorage.getItem('starfish_token');
+      const res = await fetch(`${API_URL}/api/transcribe`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Transcription failed');
+      const { text } = await res.json();
+      if (text) setInput((prev) => (prev ? prev + ' ' + text : text));
+    } catch (err: any) {
+      console.error('Transcription error:', err);
+    } finally {
+      setIsTranscribing(false);
+    }
+  };
+
+  // File upload
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedAgentId) return;
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const token = localStorage.getItem('starfish_token');
+      const res = await fetch(`${API_URL}/api/agents/${selectedAgentId}/files`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Upload failed');
+      const data = await res.json();
+      setMessages((prev) => [
+        ...prev,
+        { role: 'user', content: `📎 Uploaded: ${data.filename}`, timestamp: new Date() },
+      ]);
+    } catch (err: any) {
+      console.error('Upload error:', err);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const selectedAgent = agents?.find((a: any) => a.id === selectedAgentId);
@@ -75,21 +171,32 @@ function ChatPageContent() {
           <h1 className="text-3xl font-bold">Chat</h1>
           <p className="text-muted-foreground mt-1">Test your agents in real-time</p>
         </div>
-        <select
-          value={selectedAgentId}
-          onChange={(e) => {
-            setSelectedAgentId(e.target.value);
-            setMessages([]);
-          }}
-          className="px-4 py-2 bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-        >
-          <option value="">Select an agent...</option>
-          {agents?.map((agent: any) => (
-            <option key={agent.id} value={agent.id}>
-              {agent.name}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          {selectedAgentId && messages.length > 0 && (
+            <button
+              onClick={clearHistory}
+              className="p-2 text-muted-foreground hover:text-destructive transition-colors"
+              title="Clear history"
+            >
+              <Trash2 className="h-5 w-5" />
+            </button>
+          )}
+          <select
+            value={selectedAgentId}
+            onChange={(e) => {
+              setSelectedAgentId(e.target.value);
+              setMessages([]);
+            }}
+            className="px-4 py-2 bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="">Select an agent...</option>
+            {agents?.map((agent: any) => (
+              <option key={agent.id} value={agent.id}>
+                {agent.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Messages */}
@@ -105,10 +212,7 @@ function ChatPageContent() {
           </div>
         ) : (
           messages.map((message, i) => (
-            <div
-              key={i}
-              className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
+            <div key={i} className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {message.role === 'assistant' && (
                 <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                   <Bot className="h-4 w-4 text-primary" />
@@ -158,15 +262,36 @@ function ChatPageContent() {
       {/* Input */}
       <div className="pt-4 border-t">
         <div className="flex gap-2">
+          <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!selectedAgentId || isLoading}
+            className="px-3 py-3 bg-background border rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
+            title="Upload file"
+          >
+            <Paperclip className="h-5 w-5 text-muted-foreground" />
+          </button>
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-            placeholder={selectedAgentId ? 'Type a message...' : 'Select an agent first'}
+            placeholder={isTranscribing ? 'Transcribing...' : selectedAgentId ? 'Type a message...' : 'Select an agent first'}
             disabled={!selectedAgentId || isLoading}
             className="flex-1 px-4 py-3 bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
           />
+          <button
+            onClick={isRecording ? stopRecording : startRecording}
+            disabled={!selectedAgentId || isLoading || isTranscribing}
+            className={`px-3 py-3 rounded-lg transition-colors disabled:opacity-50 ${
+              isRecording
+                ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
+                : 'bg-background border hover:bg-muted'
+            }`}
+            title={isRecording ? 'Stop recording' : 'Voice input'}
+          >
+            {isRecording ? <Square className="h-5 w-5" /> : <Mic className="h-5 w-5 text-muted-foreground" />}
+          </button>
           <button
             onClick={handleSend}
             disabled={!selectedAgentId || !input.trim() || isLoading}

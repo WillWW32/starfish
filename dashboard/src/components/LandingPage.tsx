@@ -113,10 +113,10 @@ export default function LandingPage() {
             Inquire Now
           </a>
           <Link
-            href="/login"
+            href="/talk"
             className="px-8 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-lg border border-slate-700 transition-colors text-lg"
           >
-            Client Login
+            Talk to Boss B
           </Link>
         </div>
       </section>
@@ -171,13 +171,21 @@ export default function LandingPage() {
       <section className="max-w-4xl mx-auto px-6 py-20 text-center">
         <div className="bg-gradient-to-r from-blue-600/20 to-cyan-600/20 border border-blue-500/20 rounded-2xl p-12">
           <h2 className="text-3xl font-bold text-white mb-4">Ready to put AI to work for your business?</h2>
-          <p className="text-slate-400 mb-8">Tell us your use case. We'll build the agent.</p>
-          <a
-            href="mailto:jesse@entreartists.com?subject=Starfish%20AI%20Inquiry"
-            className="inline-block px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors text-lg"
-          >
-            Get in Touch
-          </a>
+          <p className="text-slate-400 mb-8">Chat with Boss B to tell us your use case — or email us directly.</p>
+          <div className="flex items-center justify-center gap-4">
+            <Link
+              href="/talk"
+              className="inline-block px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors text-lg"
+            >
+              Talk to Boss B
+            </Link>
+            <a
+              href="mailto:jesse@entreartists.com?subject=Starfish%20AI%20Inquiry"
+              className="inline-block px-8 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-lg border border-slate-700 transition-colors text-lg"
+            >
+              Email Us
+            </a>
+          </div>
         </div>
       </section>
 
