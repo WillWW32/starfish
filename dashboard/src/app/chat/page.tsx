@@ -279,13 +279,13 @@ function ChatPageContent() {
       </div>
 
       {/* Input */}
-      <div className="pt-3 sm:pt-4 border-t">
-        <div className="flex gap-1.5 sm:gap-2">
+      <div className="pt-3 sm:pt-4 border-t flex-shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 w-full overflow-hidden">
           <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={!selectedAgentId || isLoading}
-            className="px-2.5 sm:px-3 py-2.5 sm:py-3 bg-background border rounded-lg hover:bg-muted transition-colors disabled:opacity-50 flex-shrink-0"
+            className="flex-none w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center bg-background border rounded-lg hover:bg-muted transition-colors disabled:opacity-50"
             title="Upload file"
           >
             <Paperclip className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
@@ -297,12 +297,12 @@ function ChatPageContent() {
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
             placeholder={isTranscribing ? 'Transcribing...' : selectedAgentId ? 'Type a message...' : 'Select agent first'}
             disabled={!selectedAgentId || isLoading}
-            className="flex-1 min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 text-sm sm:text-base"
+            className="flex-1 min-w-0 px-3 sm:px-4 h-10 sm:h-11 bg-background border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 text-sm sm:text-base"
           />
           <button
             onClick={isRecording ? stopRecording : startRecording}
             disabled={!selectedAgentId || isLoading || isTranscribing}
-            className={`px-2.5 sm:px-3 py-2.5 sm:py-3 rounded-lg transition-colors disabled:opacity-50 flex-shrink-0 ${
+            className={`flex-none w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center rounded-lg transition-colors disabled:opacity-50 ${
               isRecording
                 ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
                 : 'bg-background border hover:bg-muted'
@@ -314,7 +314,7 @@ function ChatPageContent() {
           <button
             onClick={handleSend}
             disabled={!selectedAgentId || !input.trim() || isLoading}
-            className="px-3 sm:px-4 py-2.5 sm:py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 flex-shrink-0"
+            className="flex-none w-10 h-10 sm:w-11 sm:h-11 flex items-center justify-center bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
             <Send className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>

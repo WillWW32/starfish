@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import crypto from 'crypto';
 
 export interface KlingGenerationRequest {
   prompt: string;
@@ -18,17 +19,47 @@ export interface KlingGenerationStatus {
   error?: string;
 }
 
+// Generate JWT token for Kling API (HS256)
+function generateKlingJWT(accessKey: string, secretKey: string): string {
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    iss: accessKey,
+    exp: now + 1800, // 30 minutes
+    nbf: now - 5,    // 5s buffer for clock skew
+  };
+
+  const encode = (obj: object) =>
+    Buffer.from(JSON.stringify(obj)).toString('base64url');
+
+  const headerB64 = encode(header);
+  const payloadB64 = encode(payload);
+  const signature = crypto
+    .createHmac('sha256', secretKey)
+    .update(`${headerB64}.${payloadB64}`)
+    .digest('base64url');
+
+  return `${headerB64}.${payloadB64}.${signature}`;
+}
+
 export class KlingAPI {
-  private client: AxiosInstance;
+  private accessKey: string;
+  private secretKey: string;
 
-  constructor(apiKey?: string) {
-    const key = apiKey || process.env.KLING_API_KEY;
-    if (!key) throw new Error('KLING_API_KEY not configured');
+  constructor() {
+    this.accessKey = process.env.KLING_ACCESS_KEY || '';
+    this.secretKey = process.env.KLING_SECRET_KEY || '';
+    if (!this.accessKey || !this.secretKey) {
+      throw new Error('KLING_ACCESS_KEY and KLING_SECRET_KEY not configured');
+    }
+  }
 
-    this.client = axios.create({
+  private getClient(): AxiosInstance {
+    const token = generateKlingJWT(this.accessKey, this.secretKey);
+    return axios.create({
       baseURL: 'https://api.klingai.com/v1',
       headers: {
-        'Authorization': `Bearer ${key}`,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     });
@@ -52,12 +83,14 @@ export class KlingAPI {
       payload.image = request.image_url;
     }
 
-    const { data } = await this.client.post(endpoint, payload);
+    const client = this.getClient();
+    const { data } = await client.post(endpoint, payload);
     return data.data?.task_id;
   }
 
   async getGenerationStatus(taskId: string): Promise<KlingGenerationStatus> {
-    const { data } = await this.client.get(`/videos/text2video/${taskId}`);
+    const client = this.getClient();
+    const { data } = await client.get(`/videos/text2video/${taskId}`);
     const task = data.data;
 
     return {

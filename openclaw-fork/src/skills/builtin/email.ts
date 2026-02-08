@@ -1,8 +1,19 @@
 import { Skill } from '../../types.js';
 import nodemailer from 'nodemailer';
 
-// Smart transporter: Resend SMTP bridge if available, else Gmail SMTP
+// Smart transporter: Gmail SMTP if configured, else Resend SMTP bridge
 function getTransporter() {
+  if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+    return nodemailer.createTransport({
+      host: process.env.SMTP_HOST || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+  }
   if (process.env.RESEND_API_KEY) {
     return nodemailer.createTransport({
       host: 'smtp.resend.com',
@@ -11,15 +22,7 @@ function getTransporter() {
       auth: { user: 'resend', pass: process.env.RESEND_API_KEY }
     });
   }
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS
-    }
-  });
+  throw new Error('No email provider configured (need SMTP_USER+SMTP_PASS or RESEND_API_KEY)');
 }
 
 export const emailSkill: Skill = {

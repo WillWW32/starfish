@@ -4,9 +4,9 @@ export class TypefullyAPI {
   private client: AxiosInstance;
 
   constructor() {
-    const apiKey = process.env.TYPEFULLY_API_KEY;
+    const apiKey = process.env.TYPEFULLY;
     if (!apiKey) {
-      throw new Error('TYPEFULLY_API_KEY environment variable is required');
+      throw new Error('TYPEFULLY environment variable is required');
     }
 
     this.client = axios.create({
